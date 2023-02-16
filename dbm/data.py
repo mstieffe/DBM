@@ -27,7 +27,7 @@ class Data():
 
         #forcefield
         self.ff_name = cfg.get('forcefield', 'ff_file')
-        self.ff_path = Path("./forcefield") / self.ff_name
+        self.ff_path = Path("./data/forcefield") / self.ff_name
         self.ff = FF(self.ff_path)
 
         self.desc = '_aug={}_align={}_order={}_cutoff={}_kick={}_ff={}.pkl'.format(self.aug,
