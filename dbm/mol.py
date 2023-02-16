@@ -106,7 +106,7 @@ class Mol():
 
     def add_aa_top(self, top_file, ff):
 
-        for line in read_between("[bonds]", "[/bonds]", top_file):
+        for line in read_between("[bonds]", "[", top_file):
             if len(line.split()) >= 2:
                 index1 = int(line.split()[0]) - 1
                 index2 = int(line.split()[1]) - 1
@@ -115,7 +115,7 @@ class Mol():
                     self.add_bond(bond)
 
 
-        for line in read_between("[angles]", "[/angles]", top_file):
+        for line in read_between("[angles]", "[", top_file):
             if len(line.split()) >= 3:
                 index1 = int(line.split()[0]) - 1
                 index2 = int(line.split()[1]) - 1
@@ -124,7 +124,7 @@ class Mol():
                 if angle:
                     self.add_angle(angle)
 
-        for line in read_between("[dihedrals]", "[/dihedrals]", top_file):
+        for line in read_between("[dihedrals]", "[", top_file):
             if len(line.split()) >= 4:
                 index1 = int(line.split()[0]) - 1
                 index2 = int(line.split()[1]) - 1
@@ -140,7 +140,7 @@ class Mol():
                     except:
                         self.add_dih(dih)
 
-        for line in read_between("[exclusions]", "[/exclusions]", top_file):
+        for line in read_between("[exclusions]", "[", top_file):
             if len(line.split()) >= 2:
                 index1 = int(line.split()[0]) - 1
                 #index2 = int(line.split()[1]) - 1
@@ -148,7 +148,7 @@ class Mol():
                 for ndx in line.split()[1:]:
                     self.add_excl([self.atoms[index1], self.atoms[int(ndx)-1]])
 
-        for line in read_between("[pairs]", "[/pairs]", top_file):
+        for line in read_between("[pairs]", "[", top_file):
             if len(line.split()) >= 2:
                 index1 = int(line.split()[0]) - 1
                 index2 = int(line.split()[1]) - 1
@@ -158,7 +158,7 @@ class Mol():
 
     def add_cg_top(self, top_file):
 
-        for line in read_between("[bonds]", "[/bonds]", top_file):
+        for line in read_between("[bonds]", "[", top_file):
             index1 = int(line.split()[0]) - 1
             index2 = int(line.split()[1]) - 1
             self.add_cg_edge([self.beads[index1], self.beads[index2]])
