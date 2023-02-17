@@ -108,7 +108,7 @@ class Mol():
     def add_aa_top(self, top_file, ff):
 
         for line in read_between("[bonds]", "[", top_file):
-            splitted_line = re.split("\s+", line)
+            splitted_line = list(filter(None, re.split("\s+", line)))
             if len(splitted_line) >= 2:
                 index1 = int(splitted_line[0]) - 1
                 index2 = int(splitted_line[1]) - 1
@@ -118,7 +118,7 @@ class Mol():
 
 
         for line in read_between("[angles]", "[", top_file):
-            splitted_line = re.split("\s+", line)
+            splitted_line = list(filter(None, re.split("\s+", line)))
             if len(splitted_line) >= 3:
                 index1 = int(splitted_line[0]) - 1
                 index2 = int(splitted_line[1]) - 1
@@ -128,7 +128,7 @@ class Mol():
                     self.add_angle(angle)
 
         for line in read_between("[dihedrals]", "[", top_file):
-            splitted_line = re.split("\s+", line)
+            splitted_line = list(filter(None, re.split("\s+", line)))
             if len(splitted_line) >= 4:
                 index1 = int(splitted_line[0]) - 1
                 index2 = int(splitted_line[1]) - 1
@@ -145,7 +145,7 @@ class Mol():
                         self.add_dih(dih)
 
         for line in read_between("[exclusions]", "[", top_file):
-            splitted_line = re.split("\s+", line)
+            splitted_line = list(filter(None, re.split("\s+", line)))
             if len(splitted_line) >= 2:
                 index1 = int(splitted_line[0]) - 1
                 #index2 = int(splitted_line[1]) - 1
@@ -154,7 +154,7 @@ class Mol():
                     self.add_excl([self.atoms[index1], self.atoms[int(ndx)-1]])
 
         for line in read_between("[pairs]", "[", top_file):
-            splitted_line = re.split("\s+", line)
+            splitted_line = list(filter(None, re.split("\s+", line)))
             if len(splitted_line) >= 2:
                 index1 = int(splitted_line[0]) - 1
                 index2 = int(splitted_line[1]) - 1

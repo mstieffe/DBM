@@ -94,7 +94,7 @@ class Universe():
 
             atoms = []
             for line in read_between("[map]", "[/map]", map_file):
-                splitted_line = re.split("\s+", line)
+                splitted_line = list(filter(None, re.split("\s+", line)))
                 type_name = splitted_line[1]
                 bead = beads[int(splitted_line[2])-1]
                 atoms.append(Atom(bead,
@@ -117,7 +117,7 @@ class Universe():
 
             if self.align:
                 for line in read_between("[align]", "[/align]", map_file):
-                    splitted_line = re.split("\s+", line)
+                    splitted_line = list(filter(None, re.split("\s+", line)))
                     if len(splitted_line) == 2:
                         b_index, fp_index = splitted_line
                         if int(b_index) > len(self.mols[-1].beads) or int(fp_index) > len(self.mols[-1].beads):
@@ -131,7 +131,7 @@ class Universe():
 
             if self.aug:
                 for line in read_between("[mult]", "[/mult]", map_file):
-                    splitted_line = re.split("\s+", line)
+                    splitted_line = list(filter(None, re.split("\s+", line)))
                     b_index, m = splitted_line
                     if int(b_index) > len(self.mols[-1].beads) or int(m) < 0:
                         raise Exception('Invalid number of multiples!')
