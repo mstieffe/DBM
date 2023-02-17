@@ -19,6 +19,7 @@ from dbm.box import *
 from dbm.util import read_between
 #from utils import *
 from copy import deepcopy
+import re
 #import sys
 np.set_printoptions(threshold=np.inf)
 
@@ -93,8 +94,9 @@ class Universe():
 
             atoms = []
             for line in read_between("[map]", "[/map]", map_file):
-                type_name = line.split()[1]
-                bead = beads[int(line.split()[2])-1]
+                splitted_line = re.split("\s+", line)
+                type_name = splitted_line[1]
+                bead = beads[int(splitted_line[2])-1]
                 atoms.append(Atom(bead,
                                   self.mols[-1],
                                   self.ff.atom_types[type_name]))
@@ -115,20 +117,22 @@ class Universe():
 
             if self.align:
                 for line in read_between("[align]", "[/align]", map_file):
-                    if len(line.split()) == 2:
-                        b_index, fp_index = line.split()
+                    splitted_line = re.split("\s+", line)
+                    if len(splitted_line) == 2:
+                        b_index, fp_index = splitted_line
                         if int(b_index) > len(self.mols[-1].beads) or int(fp_index) > len(self.mols[-1].beads):
                             raise Exception('Indices in algn section do not match the molecular structure!')
                         self.mols[-1].beads[int(b_index) - 1].fp = self.mols[-1].beads[int(fp_index) - 1]
-                    elif len(line.split()) == 3:
-                        b_index, fp1_aa_index, fp2_aa_index = line.split()
+                    elif len(splitted_line) == 3:
+                        b_index, fp1_aa_index, fp2_aa_index = splitted_line
                         if int(b_index) > len(self.mols[-1].beads) or int(fp1_aa_index) > len(self.mols[-1].atoms) or int(fp2_aa_index) > len(self.mols[-1].atoms):
                             raise Exception('Indices in algn section do not match the molecular structure!')
                         self.mols[-1].beads[int(b_index) - 1].fp = (self.mols[-1].atoms[int(fp1_aa_index) - 1], self.mols[-1].atoms[int(fp2_aa_index) - 1])
 
             if self.aug:
                 for line in read_between("[mult]", "[/mult]", map_file):
-                    b_index, m = line.split()
+                    splitted_line = re.split("\s+", line)
+                    b_index, m = splitted_line
                     if int(b_index) > len(self.mols[-1].beads) or int(m) < 0:
                         raise Exception('Invalid number of multiples!')
                     self.mols[-1].beads[int(b_index) - 1].mult = int(m)

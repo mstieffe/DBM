@@ -12,6 +12,7 @@ from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 #from dbm.ff import *
 from dbm.util import read_between
+import re
 
 elem_dict = {
     "H_AR": "H",
@@ -107,29 +108,32 @@ class Mol():
     def add_aa_top(self, top_file, ff):
 
         for line in read_between("[bonds]", "[", top_file):
-            if len(line.split()) >= 2:
-                index1 = int(line.split()[0]) - 1
-                index2 = int(line.split()[1]) - 1
+            splitted_line = re.split("\s+", line)
+            if len(splitted_line) >= 2:
+                index1 = int(splitted_line[0]) - 1
+                index2 = int(splitted_line[1]) - 1
                 bond = ff.make_bond([self.atoms[index1], self.atoms[index2]])
                 if bond:
                     self.add_bond(bond)
 
 
         for line in read_between("[angles]", "[", top_file):
-            if len(line.split()) >= 3:
-                index1 = int(line.split()[0]) - 1
-                index2 = int(line.split()[1]) - 1
-                index3 = int(line.split()[2]) - 1
+            splitted_line = re.split("\s+", line)
+            if len(splitted_line) >= 3:
+                index1 = int(splitted_line[0]) - 1
+                index2 = int(splitted_line[1]) - 1
+                index3 = int(splitted_line[2]) - 1
                 angle = ff.make_angle([self.atoms[index1], self.atoms[index2], self.atoms[index3]])
                 if angle:
                     self.add_angle(angle)
 
         for line in read_between("[dihedrals]", "[", top_file):
-            if len(line.split()) >= 4:
-                index1 = int(line.split()[0]) - 1
-                index2 = int(line.split()[1]) - 1
-                index3 = int(line.split()[2]) - 1
-                index4 = int(line.split()[3]) - 1
+            splitted_line = re.split("\s+", line)
+            if len(splitted_line) >= 4:
+                index1 = int(splitted_line[0]) - 1
+                index2 = int(splitted_line[1]) - 1
+                index3 = int(splitted_line[2]) - 1
+                index4 = int(splitted_line[3]) - 1
                 dih = ff.make_dih([self.atoms[index1], self.atoms[index2], self.atoms[index3], self.atoms[index4]])
                 if dih:
                     try:
@@ -141,17 +145,19 @@ class Mol():
                         self.add_dih(dih)
 
         for line in read_between("[exclusions]", "[", top_file):
-            if len(line.split()) >= 2:
-                index1 = int(line.split()[0]) - 1
-                #index2 = int(line.split()[1]) - 1
+            splitted_line = re.split("\s+", line)
+            if len(splitted_line) >= 2:
+                index1 = int(splitted_line[0]) - 1
+                #index2 = int(splitted_line[1]) - 1
                 #self.add_excl([self.atoms[index1], self.atoms[index2]])
-                for ndx in line.split()[1:]:
+                for ndx in splitted_line[1:]:
                     self.add_excl([self.atoms[index1], self.atoms[int(ndx)-1]])
 
         for line in read_between("[pairs]", "[", top_file):
-            if len(line.split()) >= 2:
-                index1 = int(line.split()[0]) - 1
-                index2 = int(line.split()[1]) - 1
+            splitted_line = re.split("\s+", line)
+            if len(splitted_line) >= 2:
+                index1 = int(splitted_line[0]) - 1
+                index2 = int(splitted_line[1]) - 1
                 self.add_pair([self.atoms[index1], self.atoms[index2]])
 
         self.make_aa_graph()
@@ -159,8 +165,8 @@ class Mol():
     def add_cg_top(self, top_file):
 
         for line in read_between("[bonds]", "[", top_file):
-            index1 = int(line.split()[0]) - 1
-            index2 = int(line.split()[1]) - 1
+            index1 = int(splitted_line[0]) - 1
+            index2 = int(splitted_line[1]) - 1
             self.add_cg_edge([self.beads[index1], self.beads[index2]])
 
         self.make_cg_graph()

@@ -129,7 +129,8 @@ class FF():
 
         #load general information
         for line in read_between("[general]", "[/general]", self.file):
-            name, n_excl = line.split()
+            splitted_line = re.split("\s+", line)
+            name, n_excl = splitted_line
         self.name = name
         self.n_excl = int(n_excl)
         #self.n_channels = int(n_channels)
@@ -138,13 +139,14 @@ class FF():
         #load center bead types
         #self.center_bead_types = {}
         #for line in read_between("[center_beadtypes]", "[/center_beadtypes]", self.file):
-        #    name, channel = line.split()
+        #    name, channel = splitted_line
         #    self.center_bead_types[name] = Bead_Type(name, channel)
 
         #load atom types
         self.atom_types = {}
         for line in read_between("[atom_types]", "[/atom_types]", self.file):
-            name, channel, mass, charge, sigma, epsilon = line.split()
+            splitted_line = re.split("\s+", line)
+            name, channel, mass, charge, sigma, epsilon = splitted_line
             self.n_channels = max(self.n_channels, int(channel) +1)
             self.atom_types[name] = Atom_Type(name, channel, mass, charge, sigma, epsilon)
         Atom_Type.index = 0
@@ -156,10 +158,11 @@ class FF():
         #generate LJ types
         self.lj_types = {}
         for line in read_between("[lj_types]", "[/lj_types]", self.file):
-            if len(line.split()) == 5:
-                name1, name2, channel, exp_n, exp_m = line.split()
+            splitted_line = re.split("\s+", line)
+            if len(splitted_line) == 5:
+                name1, name2, channel, exp_n, exp_m = splitted_line
             else:
-                name1, name2, channel = line.split()
+                name1, name2, channel = splitted_line
                 exp_n, exp_m = 12, 6
             self.n_channels = max(self.n_channels, int(channel) +1)
             self.lj_types[(name1, name2)] = LJ_Type(self.atom_types[name1], self.atom_types[name2], channel, exp_n, exp_m)
@@ -169,13 +172,14 @@ class FF():
         #load bond types
         self.bond_types = {}
         for line in read_between("[bond_types]", "[/bond_types]", self.file):
-            if len(line.split()) == 6:
-                name1, name2, channel, func, equil, force_const = line.split()
+            splitted_line = re.split("\s+", line)
+            if len(splitted_line) == 6:
+                name1, name2, channel, func, equil, force_const = splitted_line
                 name = (name1, name2)
                 self.n_channels = max(self.n_channels, int(channel) +1)
                 self.bond_types[name] = Bond_Type(name, channel, func, equil, force_const)
-            elif len(line.split()) == 8:
-                name1, name2, channel, func, min_dis, fc_min, max_dis, fx_max = line.split()
+            elif len(splitted_line) == 8:
+                name1, name2, channel, func, min_dis, fc_min, max_dis, fx_max = splitted_line
                 name = (name1, name2)
                 self.n_channels = max(self.n_channels, int(channel) +1)
                 self.bond_types[name] = Bond_Threshold_Type(name, channel, func, min_dis, fc_min, max_dis, fx_max)
@@ -186,13 +190,14 @@ class FF():
         #load angle types
         self.angle_types = {}
         for line in read_between("[angle_types]", "[/angle_types]", self.file):
-            if len(line.split()) == 7:
-                name1, name2, name3, channel, func, equil, force_const = line.split()
+            splitted_line = re.split("\s+", line)
+            if len(splitted_line) == 7:
+                name1, name2, name3, channel, func, equil, force_const = splitted_line
                 name = (name1, name2, name3)
                 self.n_channels = max(self.n_channels, int(channel) +1)
                 self.angle_types[name] = Angle_Type(name, channel, func, equil, force_const)
-            elif len(line.split()) == 9:
-                name1, name2, name3, channel, func, min_angle, fc_min, max_angle, fc_max = line.split()
+            elif len(splitted_line) == 9:
+                name1, name2, name3, channel, func, min_angle, fc_min, max_angle, fc_max = splitted_line
                 name = (name1, name2, name3)
                 self.n_channels = max(self.n_channels, int(channel) +1)
                 self.angle_types[name] = Angle_Threshold_Type(name, channel, func, min_angle, fc_min, max_angle, fc_max)
@@ -201,18 +206,19 @@ class FF():
         #load dih types
         self.dih_types, self.dih_rb_types = {}, {}
         for line in read_between("[dihedral_types]", "[/dihedral_types]", self.file):
-            if len(line.split()) == 9:
-                name1, name2, name3, name4, channel, func, equil, force_const, mult = line.split()
+            splitted_line = re.split("\s+", line)
+            if len(splitted_line) == 9:
+                name1, name2, name3, name4, channel, func, equil, force_const, mult = splitted_line
                 name = (name1, name2, name3, name4)
                 self.n_channels = max(self.n_channels, int(channel) + 1)
                 self.dih_types[name] = Dih_Type(name, channel, func, equil, force_const, mult)
-            elif len(line.split()) == 12:
-                name1, name2, name3, name4, channel, func, f1, f2, f3, f4, f5, f6 = line.split()
+            elif len(splitted_line) == 12:
+                name1, name2, name3, name4, channel, func, f1, f2, f3, f4, f5, f6 = splitted_line
                 name = (name1, name2, name3, name4)
                 self.n_channels = max(self.n_channels, int(channel) + 1)
                 self.dih_rb_types[name] = Dih_Type_RB(name, channel, func, f1, f2, f3, f4, f5)
             else:
-                name1, name2, name3, name4, channel, func, equil, force_const = line.split()
+                name1, name2, name3, name4, channel, func, equil, force_const = splitted_line
                 name = (name1, name2, name3, name4)
                 self.n_channels = max(self.n_channels, int(channel) + 1)
                 self.dih_types[name] = Dih_Type(name, channel, func, equil, force_const)
@@ -223,7 +229,8 @@ class FF():
         self.bead_types = {}
         use_bead_chns = False
         for line in read_between("[bead_types]", "[/bead_types]", self.file):
-            name, channel = line.split()
+            splitted_line = re.split("\s+", line)
+            name, channel = splitted_line
             self.n_channels = max(self.n_channels, int(channel) +1)
             self.bead_types[name] = Bead_Type(name, channel)
             if int(channel) > 0:
