@@ -165,6 +165,7 @@ class Mol():
     def add_cg_top(self, top_file):
 
         for line in read_between("[bonds]", "[", top_file):
+            splitted_line = list(filter(None, re.split("\s+", line)))
             index1 = int(splitted_line[0]) - 1
             index2 = int(splitted_line[1]) - 1
             self.add_cg_edge([self.beads[index1], self.beads[index2]])
