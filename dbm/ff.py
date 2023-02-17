@@ -1,6 +1,7 @@
 import math
 import numpy as np
 from dbm.util import read_between
+import re
 
 class Bead_Type():
 
