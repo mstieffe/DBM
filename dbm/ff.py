@@ -129,7 +129,7 @@ class FF():
         self.file = file
 
         #load general information
-        for line in read_between("[general]", "[/general]", self.file):
+        for line in read_between("[general]", "[", self.file):
             splitted_line = list(filter(None, re.split("\s+", line)))
             name, n_excl = splitted_line
         self.name = name
@@ -145,7 +145,7 @@ class FF():
 
         #load atom types
         self.atom_types = {}
-        for line in read_between("[atom_types]", "[/atom_types]", self.file):
+        for line in read_between("[atom_types]", "[", self.file):
             splitted_line = list(filter(None, re.split("\s+", line)))
             name, channel, mass, charge, sigma, epsilon = splitted_line
             self.n_channels = max(self.n_channels, int(channel) +1)
@@ -158,7 +158,7 @@ class FF():
 
         #generate LJ types
         self.lj_types = {}
-        for line in read_between("[lj_types]", "[/lj_types]", self.file):
+        for line in read_between("[lj_types]", "[", self.file):
             splitted_line = list(filter(None, re.split("\s+", line)))
             if len(splitted_line) == 5:
                 name1, name2, channel, exp_n, exp_m = splitted_line
@@ -172,7 +172,7 @@ class FF():
 
         #load bond types
         self.bond_types = {}
-        for line in read_between("[bond_types]", "[/bond_types]", self.file):
+        for line in read_between("[bond_types]", "[", self.file):
             splitted_line = list(filter(None, re.split("\s+", line)))
             if len(splitted_line) == 6:
                 name1, name2, channel, func, equil, force_const = splitted_line
@@ -190,7 +190,7 @@ class FF():
 
         #load angle types
         self.angle_types = {}
-        for line in read_between("[angle_types]", "[/angle_types]", self.file):
+        for line in read_between("[angle_types]", "[", self.file):
             splitted_line = list(filter(None, re.split("\s+", line)))
             if len(splitted_line) == 7:
                 name1, name2, name3, channel, func, equil, force_const = splitted_line
@@ -206,7 +206,7 @@ class FF():
 
         #load dih types
         self.dih_types, self.dih_rb_types = {}, {}
-        for line in read_between("[dihedral_types]", "[/dihedral_types]", self.file):
+        for line in read_between("[dihedral_types]", "[", self.file):
             splitted_line = list(filter(None, re.split("\s+", line)))
             if len(splitted_line) == 9:
                 name1, name2, name3, name4, channel, func, equil, force_const, mult = splitted_line
@@ -229,7 +229,7 @@ class FF():
         #load bead types
         self.bead_types = {}
         use_bead_chns = False
-        for line in read_between("[bead_types]", "[/bead_types]", self.file):
+        for line in read_between("[bead_types]", "[", self.file):
             splitted_line = list(filter(None, re.split("\s+", line)))
             name, channel = splitted_line
             self.n_channels = max(self.n_channels, int(channel) +1)
