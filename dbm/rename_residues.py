@@ -21,6 +21,13 @@ def read_between(start, end, file):
             yield line
     file.close()
 
+def insert_res_name(res_name):
+    if len(res_name) > 5:
+        res_name = res_name[:5]
+    for n in range(5-len(res_name)):
+        res_name.append(" ")
+    return res_name
+
 #res_name = "BCZ"
 #n_atoms = 62
 
@@ -32,7 +39,7 @@ parser.add_argument("aa_itp")
 args = parser.parse_args()
 directory_old = args.dir_old
 directory_new = args.dir_new
-res_name = args.res_name
+res_name = str(args.res_name)
 aa_itp = args.aa_itp
 
 n_atoms = len(list(read_between("[atoms]", "[", aa_itp)))
@@ -57,15 +64,15 @@ for file_name in os.listdir(directory_old):
                    
             for line in lines[2:-1]:
                 if res_n < 10:
-                    line = "    "+str(res_n)+res_name+"  "+line[10:]
+                    line = "    "+str(res_n)+insert_res_name(res_name)+line[10:]
                 elif res_n < 100:
-                    line = "   "+str(res_n)+res_name+"  "+line[10:]
+                    line = "   "+str(res_n)+insert_res_name(res_name)+line[10:]
                 elif res_n < 1000:
-                    line = "  "+str(res_n)+res_name+"  "+line[10:]
+                    line = "  "+str(res_n)+insert_res_name(res_name)+line[10:]
                 elif res_n < 10000:
-                    line = " "+str(res_n)+res_name+"  "+line[10:]
+                    line = " "+str(res_n)+insert_res_name(res_name)+line[10:]
                 else:
-                    line = str(res_n)+res_name+"  "+line[10:]
+                    line = str(res_n)+insert_res_name(res_name)+line[10:]
                 out.write(line)
                 n += 1
                 if n % n_atoms == 0:
