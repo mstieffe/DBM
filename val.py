@@ -7,10 +7,10 @@ def main():
     #torch device
     if torch.cuda.is_available():
         device = torch.device("cuda")
-        print("GPU will be used!")
+        print("GPU will be used!!!")
     else:
         device = torch.device("cpu")
-        print("Couldn't find GPU, will use CPU instead!")
+        print("CPU will be used!")
     torch.set_num_threads(12)
 
     #Read config
@@ -27,7 +27,7 @@ def main():
     model = GAN_seq(device=device, cfg=cfg)
 
     #train
-    model.train()
+    model.validate(samples_dir="val")
 
 if __name__ == "__main__":
     main()

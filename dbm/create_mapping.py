@@ -2,14 +2,17 @@ import os
 import argparse
 #from xml.dom import minidom
 import xml.etree.ElementTree as ET 
+import networkx as nx
 
 
 parser = argparse.ArgumentParser()
 parser.add_argument("aa_itp")
+parser.add_argument("cg_itp")
 parser.add_argument("xml")
 parser.add_argument("out")
 args = parser.parse_args()
 aa_itp = args.aa_itp
+cg_itp = args.cg_itp
 xml = args.xml
 out = args.out
 
@@ -29,16 +32,37 @@ def read_between(start, end, file):
             yield line
     file.close()
     
+def bead_order(cg_itp):
+    beads = []
+    edges = []
+    
+    for line in read_between("[atoms]", "[", cg_itp):
+        index = int(line.split()[0])
+        beads.append(index)
+    
+    
+    for line in read_between("[bonds]", "[", cg_itp):
+        index1 = int(line.split()[0]) - 1
+        index2 = int(line.split()[1]) - 1
+        edges.append([beads[index1], beads[index2]])
+
+    G_cg = nx.Graph()
+    G_cg.add_nodes_from(beads)
+    G_cg.add_edges_from(edges)
+        
+    return list(nx.dfs_preorder_nodes(G_cg))
+
+
 #xml_parser = minidom.parse(xml)
 #beads = xml_parser.getElementsByTagName('cg_bead')
 #print(beads[0].childNodes[1].text)
 #print(beads[1].attributes['name'].value)
 
 class Atom():
-    def __init__(self, atom_ndx, res, name, bead_ndx, bead_type):
+    def __init__(self, atom_ndx, res, atom_type, bead_ndx, bead_type):
         self.atom_ndx = atom_ndx
         self.res = res
-        self.name = name
+        self.atom_type = atom_type
         self.bead_ndx = bead_ndx
         self.bead_type = bead_type
 
@@ -49,6 +73,9 @@ atoms = []
 #go through all atoms in itp file
 for line in read_between("[atoms]", "[", aa_itp):
     atom_ndx = int(line.split()[0])
+    #atom_type = str(line.split()[1])
+    atom_type = str(line.split()[4])
+    atom_type = ''.join([i for i in atom_type if not i.isdigit()])
     atom_name2 = str(line.split()[4])
     res_name2 = str(line.split()[3])
     
@@ -66,7 +93,7 @@ for line in read_between("[atoms]", "[", aa_itp):
                
             #if atom name and res name match with atom in itp file -> append result to atom list
             if atom_name==atom_name2 and res_name==res_name2:
-                atoms.append(Atom(atom_ndx, res_name, atom_name, n, bead_type))
+                atoms.append(Atom(atom_ndx, res_name, atom_type, n, bead_type))
         n += 1
 
 with open(out, 'w') as out:
@@ -74,16 +101,17 @@ with open(out, 'w') as out:
     #write first two lines as they are
     out.write("[map]\n")
     for a in atoms:
-        out.write("{}\t{}\t{}\t{}\n".format(a.atom_ndx, a.name, a.bead_ndx, a.bead_type))
+        out.write("{}\t{}\t{}\t{}\n".format(a.atom_ndx, a.atom_type, a.bead_ndx, a.bead_type))
     out.write("[\\map]\n\n")
     
+    out.write("#bead order: "+str(bead_order(cg_itp))+"\n")
     out.write("[align]\n")
-    for m in range(1,n+1):
+    for m in range(1,n):
         out.write("{}\t{}\n".format(m, 1))
     out.write("[\\align]\n\n")
     
     out.write("[mult]\n")
-    for m in range(1,n+1):
+    for m in range(1,n):
         out.write("{}\t{}\n".format(m, 1))
     out.write("[\\mult]\n")
     
