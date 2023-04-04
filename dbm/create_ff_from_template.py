@@ -5,8 +5,8 @@ from copy import deepcopy
 parser = argparse.ArgumentParser()
 parser.add_argument("templ")
 parser.add_argument("name")
-parser.add_argument("aa_tip")
-parser.add_argument("cg_tip")
+parser.add_argument("aa_itp")
+parser.add_argument("cg_itp")
 parser.add_argument("out")
 args = parser.parse_args()
 templ = args.templ
@@ -45,28 +45,28 @@ with open(out, 'w') as out:
     
     out.write("[atom_types]\n")
     out.write(";name\tchannel\tmass\tcharge\tsigma\tepsilon\n")
-    for line in read_between("[atomtypes]", "[", templ):
+    for line in read_between("[atom_types]", "[", templ):
         out.write(line)
     out.write("[\\atom_types]\n")
     out.write("\n")
     
     out.write("[bond_types]\n")
     out.write(";i\tj\tchannel\tfunc\tb0\tkb\n")
-    for line in read_between("[bondtypes]", "[", templ):
+    for line in read_between("[bond_types]", "[", templ):
         out.write(line)
     out.write("[\\bond_types]\n")
     out.write("\n")
 
     out.write("[angle_types]\n")
     out.write(";i\tj\tk\tchannel\tfunc\tb0\tkb\n")
-    for line in read_between("[angletypes]", "[", templ):
+    for line in read_between("[angle_types]", "[", templ):
         out.write(line)
     out.write("[\\angle_types]\n")
     out.write("\n")
 
     out.write("[dihedral_types]\n")
     out.write(";i\tj\tk\tl\tchannel\tfunc\tparams\n")
-    for line in read_between("[dihedraltypes]", "[", templ):
+    for line in read_between("[dihedral_types]", "[", templ):
         out.write(line)
     out.write("[\\dihedral_types]\n")
     out.write("\n")

@@ -104,10 +104,14 @@ with open(out, 'w') as out:
         out.write("{}\t{}\t{}\t{}\n".format(a.atom_ndx, a.atom_type, a.bead_ndx, a.bead_type))
     out.write("[\\map]\n\n")
     
-    out.write("#bead order: "+str(bead_order(cg_itp))+"\n")
+    order = bead_order(cg_itp)
+    out.write("#bead order: "+str(order)+"\n")
     out.write("[align]\n")
     for m in range(1,n):
-        out.write("{}\t{}\n".format(m, 1))
+        if m == 1:
+            out.write("{}\t{}\n".format(m, order[1]))
+        else:
+            out.write("{}\t{}\n".format(m, order[order.index(m)-1]))
     out.write("[\\align]\n\n")
     
     out.write("[mult]\n")
