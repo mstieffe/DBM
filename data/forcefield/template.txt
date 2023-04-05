@@ -1,0 +1,60 @@
+[general]
+;name	nrexcl
+template	3
+[\general]
+
+[atom_types]
+;name	channel	mass	charge	sigma	epsilon
+C	-1	12.0110	0.000	3.75000e-01	4.39320e-01
+N	-1	14.0067	0.000	3.25000e-01	7.11280e-01
+H	-1	1.00800	0.000	2.42000e-01	1.25520e-01
+O	-1	15.9999	0.000	2.96000e-01	8.78640e-01
+[\atom_types]
+
+[bond_types]
+;i	j	channel	func	b0	kb
+C	C	0	1	0.1400	392459.2
+C	H	1	1	0.1080	307105.6
+C	N	2	1	0.1400	392459.2
+C	O	3	1	0.1222	322168.0
+[\bond_types]
+
+[angle_types]
+;i	j	k	channel	func	b0	kb
+C	C	H	4	1	120.00	480.0
+C	C	C	5	1	120.00	480.0
+C	N	C	6	1	120.00	480.0
+N	C	N	7	1	120.00	480.0
+N	C	C	8	1	120.00	480.0
+O	C	C	9	1	123.00	480.0
+O	C	N	10	1	121.00	480.0
+[\angle_types]
+
+[dihedral_types]
+;i	j	k	l	channel	func	params
+C	C	C	C	11	2	0.000	167.400
+C	C	C	H	12	2	0.000	167.400
+C	C	C	N	13	2	0.000	167.400
+C	C	N	C	13	2	0.000	167.400
+O	C	N	C	14	2	0.000	167.400
+O	C	C	C	15	2	0.000	167.400
+N	C	N	C	16	2	0.000	167.400
+C	N	C	C	13	2	0.000	167.000
+C	N	N	C	17	2	0.000	167.000
+[\dihedral_types]
+
+[lj_types]
+;i	j	channel
+C	C	18
+C	H	19
+C	N	20
+C	O	21
+H	H	22
+H	N	23
+H	O	24
+N	N	25
+N	O	26
+O	O	27
+[\lj_types]
+
+
