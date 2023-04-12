@@ -10,7 +10,9 @@ DBM is a new method based on ML for the reverse-mapping of molecular systems in 
 
 The generative adversarial approach is used to train DBM. To this end, a training set consisting of pairs of corresponding CG and FG molecular structures is used. While the target of the generator is to reproduce FG configurations, the CG structures are treated as conditional variables for the generative process. The generator reinserts missing degrees of freedom along CG variables and a discriminator compares the generated structures with the training examples. Since the input for the discriminator consists of both, the CG and the FG configuration, the discriminator evaluates not only the quality of the generated FG structure, but also its consistency with the given CG structure. 
 
-A CNN architecture is used for both models that requires a regular discretization of 3D space, which limits scaling to larger spatial structures. Therefore, the generator is combined with an autoregressive approach that reconstructs the FG structure incrementally, i.e. atom by atom. While DBM only learns local correlations, large-scale features are adapted from the CG structure. As such, only local information is required in each step, which makes the method scalable to larger system sizes. In addition, the local environment approach is a key feature for the generalizability of DBM, which will be explored in the subsequent chapter. 
+A CNN architecture is used for both models that requires a regular discretization of 3D space, which limits scaling to larger spatial structures. Therefore, the generator is combined with an autoregressive approach that reconstructs the FG structure incrementally, i.e. atom by atom. While DBM only learns local correlations, large-scale features are adapted from the CG structure. As such, only local information is required in each step, which makes the method scalable to larger system sizes. In addition, the local environment approach is a key feature for the generalizability of DBM.
+
+![](/images/autoregressive.png)
 
 The order of reconstruction is defined by a traversal of the molecular graph. Since molecular graphs are generally undirected and can be cyclic or acyclic, the depth-first-search algorithm is applied to obtain a ordering for the atoms. In a first step, DBM generates atom positions with no parents and positions of subsequent atoms are based on the atoms generated in previous steps. However, such forward sampling only yields accurate results if the underlying graph structure has a topological order, i.e. a graph traversal in which each node is visited only after all of its dependencies are explored. As such, accurate sampling of molecular structures requires more feedback than a simple forward sampling strategy provides. To this end, a variant of Gibbs sampling is applied, which subsequently refines the initial molecular structures by iteratively resampling the atom positions. Each further iteration still updates one atom at a time, but uses the knowledge of all other atoms.
 
@@ -18,7 +20,7 @@ The potential energy function of the system can be incorporated in the training 
 
 ## python packages
 
-To create a conda environment with all the required python packages you can use the env.yml file:
+The env.yml file can be used to create a Conda environment that includes all the necessary Python packages.
 
 ```
 conda env create -f env.yml
