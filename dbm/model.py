@@ -1,14 +1,32 @@
 import torch
 import torch.nn as nn
-
 from dbm.util import compute_same_padding
 
-
 def _facify(n, fac):
+    """
+    Function to divide n by fac and cast the result to an integer.
+
+    Args:
+        n (float): the numerator.
+        fac (float): the denominator.
+
+    Returns:
+        int: the result of n divided by fac, cast to an integer.
+    """
     return int(n // fac)
 
-
 def _sn_to_specnorm(sn: int):
+    """
+    Function to create a Spectral Normalization layer with the specified number of power
+        iterations (sn).
+
+    Args:
+        sn (int): the number of power iterations to use for computing the spectral norm.
+
+    Returns:
+        function: a function that applies Spectral Normalization with the specified number of
+            power iterations to a given module.
+    """
     if sn > 0:
 
         def specnorm(module):
@@ -20,6 +38,442 @@ def _sn_to_specnorm(sn: int):
             return module
 
     return specnorm
+
+class AtomGen_tiny(nn.Module):
+
+    """
+    A class to define a generator network for generating 3D atoms.
+
+    Attributes:
+    - z_dim (int): dimension of the noise vector z
+    - in_channels (int): number of input channels
+    - start_channels (int): number of channels in the first layer
+    - fac (float): factor by which to increase the number of channels in each layer
+    - sn (int): spectral normalization, if sn > 0, will be applied
+    - device (str): device on which to run the model
+
+    Public Methods:
+    - forward(z, l, c): runs a forward pass of the generator network with the given input tensors
+    """
+
+    def __init__(
+        self,
+        z_dim,
+        in_channels,
+        start_channels,
+        fac=1,
+        sn: int = 0,
+        device=None,
+    ):
+        """
+         Initializes an instance of the AtomGen_tiny class.
+
+         Args:
+         - z_dim (int): dimension of the noise vector z
+         - in_channels (int): number of input channels
+         - start_channels (int): number of channels in the first layer
+         - fac (int): factor by which to increase the number of channels in each layer
+         - sn (int): spectral normalization, if sn > 0, will be applied
+         - device (str): device on which to run the model
+         """
+
+        super().__init__()
+        specnorm = _sn_to_specnorm(sn)
+        embed_condition_blocks = [
+            specnorm(
+                nn.Conv3d(
+                    in_channels=in_channels,
+                    out_channels=_facify(start_channels, fac),
+                    kernel_size=5,
+                    stride=1,
+                    padding=2,
+                )
+            ),
+            nn.GroupNorm(1, num_channels=_facify(start_channels, fac)),
+            nn.LeakyReLU(),
+            specnorm(
+                nn.Conv3d(
+                    in_channels=start_channels,
+                    out_channels=_facify(start_channels, fac),
+                    kernel_size=3,
+                    stride=1,
+                    padding=compute_same_padding(3, 1, 1)
+                )
+            ),
+            nn.GroupNorm(1, num_channels=_facify(start_channels, fac)),
+            nn.LeakyReLU(),
+
+        ]
+        self.embed_condition = nn.Sequential(*tuple(embed_condition_blocks)).to(device=device)
+
+        downsample_cond_block = [
+            specnorm(
+                nn.Conv3d(
+                    in_channels=start_channels,
+                    out_channels=_facify(start_channels*2, fac),
+                    kernel_size=3,
+                    stride=2,
+                    padding=compute_same_padding(3, 2, 1)
+                )
+            ),
+            nn.GroupNorm(1, num_channels=_facify(start_channels*2, fac)),
+            nn.LeakyReLU(),
+
+        ]
+        self.downsample_cond = nn.Sequential(*tuple(downsample_cond_block)).to(device=device)
+
+        self.embed_noise_label = EmbedNoise(z_dim, _facify(start_channels*2, fac), sn=sn)
+
+        combined_block = [
+            specnorm(
+                nn.Conv3d(
+                    in_channels=start_channels*4,
+                    out_channels=_facify(start_channels*2, fac),
+                    kernel_size=3,
+                    stride=1,
+                    padding=compute_same_padding(3, 1, 1),
+                )
+            ),
+            nn.GroupNorm(1, num_channels=_facify(start_channels*2, fac)),
+            nn.LeakyReLU(),
+
+        ]
+        self.combined = nn.Sequential(*tuple(combined_block)).to(device=device)
+
+        deconv_block = [
+            specnorm(
+                nn.Conv3d(
+                    in_channels=start_channels*2,
+                    out_channels=_facify(start_channels, fac),
+                    kernel_size=3,
+                    stride=1,
+                    padding=compute_same_padding(3, 1, 1),
+                )
+            ),
+            nn.GroupNorm(1, num_channels=_facify(start_channels, fac)),
+            nn.LeakyReLU(),
+
+        ]
+        self.deconv = nn.Sequential(*tuple(deconv_block)).to(device=device)
+
+        to_image_blocks = [
+            specnorm(
+                nn.Conv3d(
+                    in_channels=start_channels*2,
+                    out_channels=_facify(start_channels, fac),
+                    kernel_size=3,
+                    stride=1,
+                    padding=compute_same_padding(3, 1, 1),
+                )
+            ),
+            nn.GroupNorm(1, num_channels=_facify(start_channels, fac)),
+            nn.LeakyReLU(),
+            specnorm(
+                nn.Conv3d(
+                    in_channels=start_channels,
+                    out_channels=_facify(start_channels / 2, fac),
+                    kernel_size=3,
+                    stride=1,
+                    padding=compute_same_padding(3, 1, 1),
+                )
+            ),
+            nn.GroupNorm(1, num_channels=_facify(start_channels/2, fac)),
+            nn.LeakyReLU(),
+            specnorm(nn.Conv3d(_facify(start_channels/2, fac), 1, kernel_size=1, stride=1)),
+            nn.Sigmoid(),
+        ]
+        self.to_image = nn.Sequential(*tuple(to_image_blocks)).to(device=device)
+
+    def forward(self, z, l, c):
+        z_l = torch.cat((z, l), dim=1)
+        embedded_c = self.embed_condition(c)
+        down = self.downsample_cond(embedded_c)
+        embedded_z_l = self.embed_noise_label(z_l)
+        out = torch.cat((embedded_z_l, down), dim=1)
+        out = self.combined(out)
+        out = out.repeat(1, 1, 2, 2, 2)
+        out = self.deconv(out)
+        out = torch.cat((out, embedded_c), dim=1)
+        out = self.to_image(out)
+
+        return out
+
+class AtomGen(nn.Module):
+    """
+    A class to define a generator network for generating 3D atoms. (more layers included than AtomGen_tiny
+
+    Attributes:
+    - z_dim (int): dimension of the noise vector z
+    - in_channels (int): number of input channels
+    - start_channels (int): number of channels in the first layer
+    - fac (float): factor by which to increase the number of channels in each layer
+    - sn (int): spectral normalization, if sn > 0, will be applied
+    - device (str): device on which to run the model
+
+    Public Methods:
+    - forward(z, l, c): runs a forward pass of the generator network with the given input tensors
+    """
+    def __init__(
+        self,
+        z_dim,
+        in_channels,
+        start_channels,
+        fac=1,
+        sn: int = 0,
+        device=None,
+    ):
+        super().__init__()
+        specnorm = _sn_to_specnorm(sn)
+        embed_condition_blocks = [
+            specnorm(
+                nn.Conv3d(
+                    in_channels=in_channels,
+                    out_channels=_facify(start_channels, fac),
+                    kernel_size=5,
+                    stride=1,
+                    padding=2,
+                )
+            ),
+            nn.GroupNorm(1, num_channels=_facify(start_channels, fac)),
+            nn.LeakyReLU(),
+            Residual3DConvBlock(
+                _facify(start_channels, fac), _facify(start_channels, fac), kernel_size=3, stride=1, sn=sn
+            ),
+        ]
+        self.embed_condition = nn.Sequential(*tuple(embed_condition_blocks)).to(
+            device=device
+        )
+        self.downsample_cond = Residual3DConvBlock(
+            _facify(start_channels, fac),
+            n_filters=_facify(start_channels, fac),
+            kernel_size=3,
+            stride=2,
+            sn=sn,
+        )
+
+        self.embed_noise_label = EmbedNoise(z_dim, _facify(start_channels, fac), sn=sn)
+        self.combined = GeneratorCombined3Block(
+            _facify(start_channels*2, fac), _facify(start_channels, fac), sn=sn
+        )
+
+        to_image_blocks = [
+            Residual3DConvBlock(
+                _facify(start_channels*2, fac), _facify(start_channels/2, fac), 3, 1, trans=True, sn=sn
+            ),
+            specnorm(nn.Conv3d(_facify(start_channels/2, fac), 1, kernel_size=1, stride=1)),
+            nn.Sigmoid(),
+        ]
+        self.to_image = nn.Sequential(*tuple(to_image_blocks)).to(device=device)
+
+    def forward(self, z, l, c):
+        z_l = torch.cat((z, l), dim=1)
+
+        embedded_c = self.embed_condition(c)
+        down = self.downsample_cond(embedded_c)
+
+        embedded_z_l = self.embed_noise_label(z_l)
+
+        out = self.combined(embedded_z_l, down)
+
+        out = torch.cat((out, embedded_c), dim=1)
+        out = self.to_image(out)
+
+        return out
+
+class AtomCrit_tiny(nn.Module):
+    def __init__(
+        self, in_channels, start_channels, fac=1, sn: int = 0, device=None
+    ):
+        """
+        Constructor for AtomCrit_tiny class.
+
+        Arguments:
+        in_channels -- Number of input channels.
+        start_channels -- Number of output channels for first layer.
+        fac -- Factor to multiply the number of output channels of each layer. (default 1)
+        sn -- Spectral normalization factor. (default 0)
+        device -- Device to run the network on. (default None)
+
+        Attributes:
+        step1 -- First convolutional layer with LeakyReLU activation.
+        step2 -- Second convolutional layer with GroupNorm and LeakyReLU activation.
+        step3 -- Third convolutional layer with GroupNorm and LeakyReLU activation.
+        step4 -- Fourth convolutional layer with GroupNorm and LeakyReLU activation.
+        step5 -- Fifth convolutional layer with GroupNorm and LeakyReLU activation.
+        step6 -- Sixth convolutional layer with GroupNorm and LeakyReLU activation.
+        step7 -- Seventh convolutional layer with GroupNorm and LeakyReLU activation.
+        step8 -- Eighth convolutional layer with GroupNorm and LeakyReLU activation.
+        step9 -- Ninth convolutional layer with GroupNorm and LeakyReLU activation.
+        step10 -- Tenth convolutional layer with GroupNorm and LeakyReLU activation.
+        step11 -- Eleventh convolutional layer with GroupNorm and LeakyReLU activation.
+        to_critic_value -- Final linear layer to get the output.
+        """
+        super().__init__()
+        specnorm = _sn_to_specnorm(sn)
+        self.step1 = specnorm(
+            nn.Conv3d(
+                in_channels=in_channels,
+                out_channels=_facify(start_channels, fac),
+                kernel_size=5,
+                stride=1,
+                padding=compute_same_padding(5, 1, 1),
+            )
+        )
+        self.step2 = nn.LeakyReLU()
+
+        self.step3 = specnorm(
+            nn.Conv3d(
+                in_channels=_facify(start_channels, fac),
+                out_channels=_facify(start_channels*2, fac),
+                kernel_size=3,
+                stride=2,
+                padding=compute_same_padding(3, 1, 1),
+            )
+        )
+        self.step4 = nn.GroupNorm(1, _facify(start_channels*2, fac))
+        self.step5 = nn.LeakyReLU()
+
+        self.step6 = specnorm(
+            nn.Conv3d(
+                in_channels=_facify(start_channels*2, fac),
+                out_channels=_facify(start_channels*2, fac),
+                kernel_size=3,
+                stride=1,
+                padding=compute_same_padding(3, 1, 1),
+            )
+        )
+        self.step7 = nn.GroupNorm(1, _facify(start_channels*2, fac))
+        self.step8 = nn.LeakyReLU()
+
+        self.step9 = specnorm(
+            nn.Conv3d(
+                in_channels=_facify(start_channels*2, fac),
+                out_channels=_facify(start_channels, fac),
+                kernel_size=4,
+                stride=1,
+                padding=0,
+            )
+        )
+        self.step10 = nn.GroupNorm(1, _facify(start_channels, fac))
+        self.step11 = nn.LeakyReLU()
+
+        self.to_critic_value = specnorm(
+            nn.Linear(
+                in_features=_facify(start_channels, fac), out_features=1
+            )
+        )
+
+    def forward(self, inputs):
+        out = self.step1(inputs)
+        out = self.step2(out)
+        out = self.step3(out)
+        out = self.step4(out)
+        out = self.step5(out)
+        out = self.step6(out)
+        out = self.step7(out)
+        out = self.step8(out)
+        out = self.step9(out)
+        out = self.step10(out)
+        out = self.step11(out)
+        out = torch.flatten(out, start_dim=1, end_dim=-1)
+        out = self.to_critic_value(out)
+        return out
+
+class AtomCrit(nn.Module):
+    def __init__(
+        self, in_channels, start_channels, fac=1, sn: int = 0, device=None
+    ):
+        """
+        Constructor for AtomCrit class.
+
+        Arguments:
+        in_channels -- Number of input channels.
+        start_channels -- Number of output channels for first layer.
+        fac -- Factor to multiply the number of output channels of each layer. (default 1)
+        sn -- Spectral normalization factor. (default 0)
+        device -- Device to run the network on. (default None)
+
+        Attributes:
+        step1 -- First convolutional layer with LeakyReLU activation.
+        step2 -- Second convolutional layer with GroupNorm and LeakyReLU activation.
+        step3 -- Third convolutional layer with GroupNorm and LeakyReLU activation.
+        step4 -- Fourth convolutional layer with GroupNorm and LeakyReLU activation.
+        step5 -- Fifth convolutional layer with GroupNorm and LeakyReLU activation.
+        step6 -- Sixth convolutional layer with GroupNorm and LeakyReLU activation.
+        step7 -- Seventh convolutional layer with GroupNorm and LeakyReLU activation.
+        step8 -- Eighth convolutional layer with GroupNorm and LeakyReLU activation.
+        step9 -- Ninth convolutional layer with GroupNorm and LeakyReLU activation.
+        step10 -- Tenth convolutional layer with GroupNorm and LeakyReLU activation.
+        step11 -- Eleventh convolutional layer with GroupNorm and LeakyReLU activation.
+        to_critic_value -- Final linear layer to get the output.
+        """
+        super().__init__()
+        specnorm = _sn_to_specnorm(sn)
+        self.step1 = specnorm(
+            nn.Conv3d(
+                in_channels=in_channels,
+                out_channels=_facify(start_channels, fac),
+                kernel_size=5,
+                stride=1,
+                padding=compute_same_padding(5, 1, 1),
+            )
+        )
+        self.step2 = nn.LeakyReLU()
+
+        self.step4 = Residual3DConvBlock(
+            in_channels=_facify(start_channels, fac),
+            n_filters=_facify(start_channels*2, fac),
+            kernel_size=3,
+            stride=2,
+            sn=sn,
+            device=device,
+        )
+
+        self.step6 = specnorm(
+            nn.Conv3d(
+                in_channels=_facify(start_channels*2, fac),
+                out_channels=_facify(start_channels*2, fac),
+                kernel_size=3,
+                stride=1,
+                padding=compute_same_padding(3, 1, 1),
+            )
+        )
+        self.step7 = nn.GroupNorm(1, _facify(start_channels*2, fac))
+        self.step8 = nn.LeakyReLU()
+
+        self.step9 = specnorm(
+            nn.Conv3d(
+                in_channels=_facify(start_channels*2, fac),
+                out_channels=_facify(start_channels, fac),
+                kernel_size=4,
+                stride=1,
+                padding=0,
+            )
+        )
+        self.step10 = nn.GroupNorm(1, _facify(start_channels, fac))
+        self.step11 = nn.LeakyReLU()
+
+        self.to_critic_value = specnorm(
+            nn.Linear(
+                in_features=_facify(start_channels, fac), out_features=1
+            )
+        )
+
+    def forward(self, inputs):
+        out = self.step1(inputs)
+        out = self.step2(out)
+        #out = self.step3(out)
+        out = self.step4(out)
+        #out = self.step5(out)
+        out = self.step6(out)
+        out = self.step7(out)
+        out = self.step8(out)
+        out = self.step9(out)
+        out = self.step10(out)
+        out = self.step11(out)
+        out = torch.flatten(out, start_dim=1, end_dim=-1)
+        out = self.to_critic_value(out)
+        return out
 
 
 class Residual3DConvBlock(nn.Module):
@@ -335,1068 +789,3 @@ class GeneratorCombined3Block(nn.Module):
         return out
 
 
-class AtomGen_VAE(nn.Module):
-    def __init__(
-        self,
-        z_dim,
-        in_channels,
-        start_channels,
-        fac=1,
-        sn: int = 0,
-        device=None,
-    ):
-        super().__init__()
-        specnorm = _sn_to_specnorm(sn)
-        embed_condition_blocks = [
-            specnorm(
-                nn.Conv3d(
-                    in_channels=in_channels,
-                    out_channels=_facify(start_channels, fac),
-                    kernel_size=5,
-                    stride=1,
-                    padding=2,
-                )
-            ),
-            nn.GroupNorm(1, num_channels=_facify(start_channels, fac)),
-            nn.LeakyReLU(),
-            specnorm(
-                nn.Conv3d(
-                    in_channels=_facify(start_channels, fac),
-                    out_channels=_facify(start_channels, fac),
-                    kernel_size=3,
-                    stride=1,
-                    padding=compute_same_padding(3, 1, 1)
-                )
-            ),
-            nn.GroupNorm(1, num_channels=_facify(start_channels, fac)),
-            nn.LeakyReLU(),
-
-        ]
-        self.embed_condition = nn.Sequential(*tuple(embed_condition_blocks)).to(device=device)
-
-        downsample_cond_block = [
-            specnorm(
-                nn.Conv3d(
-                    in_channels=start_channels,
-                    out_channels=_facify(start_channels*2, fac),
-                    kernel_size=3,
-                    stride=2,
-                    padding=compute_same_padding(3, 2, 1)
-                )
-            ),
-            nn.GroupNorm(1, num_channels=_facify(start_channels*2, fac)),
-            nn.LeakyReLU(),
-
-        ]
-        self.downsample_cond = nn.Sequential(*tuple(downsample_cond_block)).to(device=device)
-
-        self.embed_noise_label = EmbedNoise(z_dim, _facify(start_channels*2, fac), sn=sn)
-
-        combined_block = [
-            specnorm(
-                nn.Conv3d(
-                    in_channels=_facify(start_channels*4, fac),
-                    out_channels=_facify(start_channels*2, fac),
-                    kernel_size=3,
-                    stride=1,
-                    padding=compute_same_padding(3, 1, 1),
-                )
-            ),
-            nn.GroupNorm(1, num_channels=_facify(start_channels*2, fac)),
-            nn.LeakyReLU(),
-
-        ]
-        self.combined = nn.Sequential(*tuple(combined_block)).to(device=device)
-
-        to_linear = [
-            specnorm(
-                nn.Conv3d(
-                    in_channels=_facify(start_channels *2, fac),
-                    out_channels=_facify(start_channels *2, fac),
-                    kernel_size=3,
-                    stride=1,
-                    padding=compute_same_padding(3, 1, 1),
-                )
-            ),
-            nn.GroupNorm(1, num_channels=_facify(start_channels*2, fac)),
-            nn.LeakyReLU(),
-            specnorm(
-                nn.Conv3d(
-                    in_channels=_facify(start_channels*2, fac),
-                    out_channels=_facify(start_channels *2, fac),
-                    kernel_size=4,
-                    stride=1,
-                    padding=0,
-                )
-            ),
-            nn.GroupNorm(1, num_channels=_facify(start_channels *2, fac)),
-            nn.LeakyReLU(),
-        ]
-        self.to_linear = nn.Sequential(*tuple(to_linear)).to(device=device)
-
-
-        to_mu_sigma = [
-            specnorm(
-            nn.Linear(
-                in_features=_facify(start_channels*2, fac), out_features=6
-            )
-        )
-        ]
-        self.to_mu_sigma = nn.Sequential(*tuple(to_mu_sigma)).to(device=device)
-
-        #self.width = width
-
-    def forward(self, z, l, c):
-        z_l = torch.cat((z, l), dim=1)
-        embedded_c = self.embed_condition(c)
-        down = self.downsample_cond(embedded_c)
-        embedded_z_l = self.embed_noise_label(z_l)
-        out = torch.cat((embedded_z_l, down), dim=1)
-        out = self.combined(out)
-        #out = torch.cat((out, embedded_c), dim=1)
-        out = self.to_linear(out)
-        out = torch.flatten(out, start_dim=1, end_dim=-1)
-        out = self.to_mu_sigma(out)
-        #out = out * self.width
-
-        return out
-
-
-
-class AtomGen_tiny(nn.Module):
-    def __init__(
-        self,
-        z_dim,
-        in_channels,
-        start_channels,
-        fac=1,
-        sn: int = 0,
-        device=None,
-    ):
-        super().__init__()
-        specnorm = _sn_to_specnorm(sn)
-        embed_condition_blocks = [
-            specnorm(
-                nn.Conv3d(
-                    in_channels=in_channels,
-                    out_channels=_facify(start_channels, fac),
-                    kernel_size=5,
-                    stride=1,
-                    padding=2,
-                )
-            ),
-            nn.GroupNorm(1, num_channels=_facify(start_channels, fac)),
-            nn.LeakyReLU(),
-            specnorm(
-                nn.Conv3d(
-                    in_channels=start_channels,
-                    out_channels=_facify(start_channels, fac),
-                    kernel_size=3,
-                    stride=1,
-                    padding=compute_same_padding(3, 1, 1)
-                )
-            ),
-            nn.GroupNorm(1, num_channels=_facify(start_channels, fac)),
-            nn.LeakyReLU(),
-
-        ]
-        self.embed_condition = nn.Sequential(*tuple(embed_condition_blocks)).to(device=device)
-
-        downsample_cond_block = [
-            specnorm(
-                nn.Conv3d(
-                    in_channels=start_channels,
-                    out_channels=_facify(start_channels*2, fac),
-                    kernel_size=3,
-                    stride=2,
-                    padding=compute_same_padding(3, 2, 1)
-                )
-            ),
-            nn.GroupNorm(1, num_channels=_facify(start_channels*2, fac)),
-            nn.LeakyReLU(),
-
-        ]
-        self.downsample_cond = nn.Sequential(*tuple(downsample_cond_block)).to(device=device)
-
-        self.embed_noise_label = EmbedNoise(z_dim, _facify(start_channels*2, fac), sn=sn)
-
-        combined_block = [
-            specnorm(
-                nn.Conv3d(
-                    in_channels=start_channels*4,
-                    out_channels=_facify(start_channels*2, fac),
-                    kernel_size=3,
-                    stride=1,
-                    padding=compute_same_padding(3, 1, 1),
-                )
-            ),
-            nn.GroupNorm(1, num_channels=_facify(start_channels*2, fac)),
-            nn.LeakyReLU(),
-
-        ]
-        self.combined = nn.Sequential(*tuple(combined_block)).to(device=device)
-
-        deconv_block = [
-            specnorm(
-                nn.Conv3d(
-                    in_channels=start_channels*2,
-                    out_channels=_facify(start_channels, fac),
-                    kernel_size=3,
-                    stride=1,
-                    padding=compute_same_padding(3, 1, 1),
-                )
-            ),
-            nn.GroupNorm(1, num_channels=_facify(start_channels, fac)),
-            nn.LeakyReLU(),
-
-        ]
-        self.deconv = nn.Sequential(*tuple(deconv_block)).to(device=device)
-
-        to_image_blocks = [
-            specnorm(
-                nn.Conv3d(
-                    in_channels=start_channels*2,
-                    out_channels=_facify(start_channels, fac),
-                    kernel_size=3,
-                    stride=1,
-                    padding=compute_same_padding(3, 1, 1),
-                )
-            ),
-            nn.GroupNorm(1, num_channels=_facify(start_channels, fac)),
-            nn.LeakyReLU(),
-            specnorm(
-                nn.Conv3d(
-                    in_channels=start_channels,
-                    out_channels=_facify(start_channels / 2, fac),
-                    kernel_size=3,
-                    stride=1,
-                    padding=compute_same_padding(3, 1, 1),
-                )
-            ),
-            nn.GroupNorm(1, num_channels=_facify(start_channels/2, fac)),
-            nn.LeakyReLU(),
-            specnorm(nn.Conv3d(_facify(start_channels/2, fac), 1, kernel_size=1, stride=1)),
-            nn.Sigmoid(),
-        ]
-        self.to_image = nn.Sequential(*tuple(to_image_blocks)).to(device=device)
-
-    def forward(self, z, l, c):
-        z_l = torch.cat((z, l), dim=1)
-        embedded_c = self.embed_condition(c)
-        down = self.downsample_cond(embedded_c)
-        embedded_z_l = self.embed_noise_label(z_l)
-        out = torch.cat((embedded_z_l, down), dim=1)
-        out = self.combined(out)
-        out = out.repeat(1, 1, 2, 2, 2)
-        out = self.deconv(out)
-        out = torch.cat((out, embedded_c), dim=1)
-        out = self.to_image(out)
-
-        return out
-
-
-class AtomGen_tiny16(nn.Module):
-    def __init__(
-            self,
-            z_dim,
-            in_channels,
-            start_channels,
-            fac=1,
-            sn: int = 0,
-            device=None,
-    ):
-        super().__init__()
-        specnorm = _sn_to_specnorm(sn)
-        embed_condition_blocks = [
-            specnorm(
-                nn.Conv3d(
-                    in_channels=in_channels,
-                    out_channels=_facify(start_channels, fac),
-                    kernel_size=5,
-                    stride=1,
-                    padding=2,
-                )
-            ),
-            nn.GroupNorm(1, num_channels=_facify(start_channels, fac)),
-            nn.LeakyReLU(),
-            specnorm(
-                nn.Conv3d(
-                    in_channels=start_channels,
-                    out_channels=_facify(start_channels, fac),
-                    kernel_size=3,
-                    stride=1,
-                    padding=compute_same_padding(3, 1, 1),
-                )
-            ),
-            nn.GroupNorm(1, num_channels=_facify(start_channels, fac)),
-            nn.LeakyReLU(),
-
-        ]
-        self.embed_condition = nn.Sequential(*tuple(embed_condition_blocks)).to(device=device)
-
-        downsample_cond_block = [
-            specnorm(
-                nn.Conv3d(
-                    in_channels=start_channels,
-                    out_channels=_facify(start_channels * 2, fac),
-                    kernel_size=3,
-                    stride=2,
-                    padding=compute_same_padding(3, 2, 1),
-                )
-            ),
-            nn.GroupNorm(1, num_channels=_facify(start_channels * 2, fac)),
-            nn.LeakyReLU(),
-
-        ]
-        self.downsample_cond = nn.Sequential(*tuple(downsample_cond_block)).to(device=device)
-
-        downsample_cond_block2 = [
-            specnorm(
-                nn.Conv3d(
-                    in_channels=start_channels * 2,
-                    out_channels=_facify(start_channels * 2, fac),
-                    kernel_size=3,
-                    stride=2,
-                    padding=compute_same_padding(3, 2, 1),
-                )
-            ),
-            nn.GroupNorm(1, num_channels=_facify(start_channels * 2, fac)),
-            nn.LeakyReLU(),
-
-        ]
-        self.downsample_cond2 = nn.Sequential(*tuple(downsample_cond_block2)).to(device=device)
-
-        self.embed_noise_label = EmbedNoise(z_dim, _facify(start_channels * 2, fac), sn=sn)
-
-        combined_block = [
-            specnorm(
-                nn.Conv3d(
-                    in_channels=start_channels * 4,
-                    out_channels=_facify(start_channels * 2, fac),
-                    kernel_size=3,
-                    stride=1,
-                    padding=compute_same_padding(3, 1, 1),
-                )
-            ),
-            nn.GroupNorm(1, num_channels=_facify(start_channels * 2, fac)),
-            nn.LeakyReLU(),
-
-        ]
-        self.combined = nn.Sequential(*tuple(combined_block)).to(device=device)
-
-        deconv_block = [
-            specnorm(
-                nn.Conv3d(
-                    in_channels=start_channels * 2,
-                    out_channels=_facify(start_channels * 2, fac),
-                    kernel_size=3,
-                    stride=1,
-                    padding=compute_same_padding(3, 1, 1),
-                )
-            ),
-            nn.GroupNorm(1, num_channels=_facify(start_channels * 2, fac)),
-            nn.LeakyReLU(),
-            specnorm(
-                nn.Conv3d(
-                    in_channels=start_channels * 2,
-                    out_channels=_facify(start_channels, fac),
-                    kernel_size=3,
-                    stride=1,
-                    padding=compute_same_padding(3, 1, 1),
-                )
-            ),
-            nn.GroupNorm(1, num_channels=_facify(start_channels , fac)),
-            nn.LeakyReLU(),
-
-        ]
-        self.deconv = nn.Sequential(*tuple(deconv_block)).to(device=device)
-
-        deconv_block2 = [
-
-            specnorm(
-                nn.Conv3d(
-                    in_channels=start_channels ,
-                    out_channels=_facify(start_channels, fac),
-                    kernel_size=3,
-                    stride=1,
-                    padding=compute_same_padding(3, 1, 1),
-                )
-            ),
-            nn.GroupNorm(1, num_channels=_facify(start_channels, fac)),
-            nn.LeakyReLU(),
-
-        ]
-        self.deconv2 = nn.Sequential(*tuple(deconv_block2)).to(device=device)
-
-        to_image_blocks = [
-            specnorm(
-                nn.Conv3d(
-                    in_channels=start_channels*2 ,
-                    out_channels=_facify(start_channels / 2, fac),
-                    kernel_size=3,
-                    stride=1,
-                    padding=compute_same_padding(3, 1, 1),
-                )
-            ),
-            nn.GroupNorm(1, num_channels=_facify(start_channels / 2, fac)),
-            nn.LeakyReLU(),
-            specnorm(
-                nn.Conv3d(
-                    in_channels=_facify(start_channels / 2, fac),
-                    out_channels=_facify(start_channels / 4, fac),
-                    kernel_size=3,
-                    stride=1,
-                    padding=compute_same_padding(3, 1, 1),
-                )
-            ),
-            nn.GroupNorm(1, num_channels=_facify(start_channels / 4, fac)),
-            nn.LeakyReLU(),
-            specnorm(nn.Conv3d(_facify(start_channels / 4, fac), 1, kernel_size=1, stride=1)),
-            nn.Sigmoid(),
-        ]
-        self.to_image = nn.Sequential(*tuple(to_image_blocks)).to(device=device)
-
-    def forward(self, z, l, c):
-        z_l = torch.cat((z, l), dim=1)
-        embedded_c = self.embed_condition(c)
-        down = self.downsample_cond(embedded_c)
-        down2 = self.downsample_cond2(down)
-        embedded_z_l = self.embed_noise_label(z_l)
-        out = torch.cat((embedded_z_l, down2), dim=1)
-        out = self.combined(out)
-        out = out.repeat(1, 1, 2, 2, 2)
-        out = self.deconv(out)
-        out = out.repeat(1, 1, 2, 2, 2)
-        out = self.deconv2(out)
-        out = torch.cat((out, embedded_c), dim=1)
-
-        out = self.to_image(out)
-
-        return out
-
-
-
-class AtomGen(nn.Module):
-    def __init__(
-        self,
-        z_dim,
-        in_channels,
-        start_channels,
-        fac=1,
-        sn: int = 0,
-        device=None,
-    ):
-        super().__init__()
-        specnorm = _sn_to_specnorm(sn)
-        embed_condition_blocks = [
-            specnorm(
-                nn.Conv3d(
-                    in_channels=in_channels,
-                    out_channels=_facify(start_channels, fac),
-                    kernel_size=5,
-                    stride=1,
-                    padding=2,
-                )
-            ),
-            nn.GroupNorm(1, num_channels=_facify(start_channels, fac)),
-            nn.LeakyReLU(),
-            Residual3DConvBlock(
-                _facify(start_channels, fac), _facify(start_channels, fac), kernel_size=3, stride=1, sn=sn
-            ),
-        ]
-        self.embed_condition = nn.Sequential(*tuple(embed_condition_blocks)).to(
-            device=device
-        )
-        self.downsample_cond = Residual3DConvBlock(
-            _facify(start_channels, fac),
-            n_filters=_facify(start_channels, fac),
-            kernel_size=3,
-            stride=2,
-            sn=sn,
-        )
-
-        self.embed_noise_label = EmbedNoise(z_dim, _facify(start_channels, fac), sn=sn)
-        self.combined = GeneratorCombined3Block(
-            _facify(start_channels*2, fac), _facify(start_channels, fac), sn=sn
-        )
-
-        to_image_blocks = [
-            Residual3DConvBlock(
-                _facify(start_channels*2, fac), _facify(start_channels/2, fac), 3, 1, trans=True, sn=sn
-            ),
-            specnorm(nn.Conv3d(_facify(start_channels/2, fac), 1, kernel_size=1, stride=1)),
-            nn.Sigmoid(),
-        ]
-        self.to_image = nn.Sequential(*tuple(to_image_blocks)).to(device=device)
-
-    def forward(self, z, l, c):
-        z_l = torch.cat((z, l), dim=1)
-
-        embedded_c = self.embed_condition(c)
-        down = self.downsample_cond(embedded_c)
-
-        embedded_z_l = self.embed_noise_label(z_l)
-
-        out = self.combined(embedded_z_l, down)
-
-        out = torch.cat((out, embedded_c), dim=1)
-        out = self.to_image(out)
-
-        return out
-
-
-class AtomGen16(nn.Module):
-    def __init__(
-        self,
-        z_dim,
-        in_channels,
-        start_channels,
-        fac=1,
-        sn: int = 0,
-        device=None,
-    ):
-        super().__init__()
-        specnorm = _sn_to_specnorm(sn)
-        embed_condition_blocks = [
-            specnorm(
-                nn.Conv3d(
-                    in_channels=in_channels,
-                    out_channels=_facify(start_channels, fac),
-                    kernel_size=5,
-                    stride=1,
-                    padding=2,
-                )
-            ),
-            nn.GroupNorm(1, num_channels=_facify(start_channels, fac)),
-            nn.LeakyReLU(),
-            Residual3DConvBlock(
-                _facify(start_channels, fac), _facify(start_channels, fac), kernel_size=3, stride=1, sn=sn
-            ),
-        ]
-        self.embed_condition = nn.Sequential(*tuple(embed_condition_blocks)).to(
-            device=device
-        )
-        self.downsample_cond = Residual3DConvBlock(
-            _facify(start_channels, fac),
-            n_filters=_facify(start_channels, fac),
-            kernel_size=3,
-            stride=2,
-            sn=sn,
-        )
-
-        self.embed_noise_label = EmbedNoise(z_dim, _facify(start_channels, fac), sn=sn)
-        self.combined1 = GeneratorCombined3Block(
-            _facify(start_channels*2, fac), _facify(start_channels, fac), sn=sn
-        )
-        self.combined2 = GeneratorCombined3Block(
-            _facify(start_channels*2, fac), _facify(start_channels, fac), sn=sn
-        )
-
-        to_image_blocks = [
-            Residual3DConvBlock(
-                _facify(start_channels*2, fac), _facify(start_channels, fac), 3, 1, trans=True, sn=sn
-            ),
-            specnorm(nn.Conv3d(_facify(start_channels, fac), 1, kernel_size=1, stride=1)),
-            nn.Sigmoid(),
-        ]
-        self.to_image = nn.Sequential(*tuple(to_image_blocks)).to(device=device)
-
-    def forward(self, z, l, c):
-        z_l = torch.cat((z, l), dim=1)
-
-        embedded_c = self.embed_condition(c)
-        down1 = self.downsample_cond(embedded_c)
-        down2 = self.downsample_cond(down1)
-
-        embedded_z_l = self.embed_noise_label(z_l)
-
-        out = self.combined1(embedded_z_l, down2)
-        out = self.combined2(out, down1)
-
-        out = torch.cat((out, embedded_c), dim=1)
-        out = self.to_image(out)
-
-        return out
-
-
-class AtomGen_big(nn.Module):
-    def __init__(
-        self,
-        z_dim,
-        in_channels,
-        start_channels,
-        fac=1,
-        sn: int = 0,
-        device=None,
-    ):
-        super().__init__()
-        specnorm = _sn_to_specnorm(sn)
-        embed_condition_blocks = [
-            specnorm(
-                nn.Conv3d(
-                    in_channels=in_channels,
-                    out_channels=_facify(start_channels, fac),
-                    kernel_size=5,
-                    stride=1,
-                    padding=2,
-                )
-            ),
-            nn.GroupNorm(1, num_channels=_facify(start_channels, fac)),
-            nn.LeakyReLU(),
-            Residual3DConvBlock(
-                _facify(start_channels, fac), _facify(start_channels, fac), kernel_size=3, stride=1, sn=sn
-            ),
-            Residual3DConvBlock(
-                _facify(start_channels, fac), _facify(start_channels, fac), kernel_size=3, stride=1, sn=sn
-            ),
-        ]
-        self.embed_condition = nn.Sequential(*tuple(embed_condition_blocks)).to(
-            device=device
-        )
-        self.downsample_cond = Residual3DConvBlock(
-            _facify(start_channels, fac),
-            n_filters=_facify(start_channels*2, fac),
-            kernel_size=3,
-            stride=2,
-            trans=True,
-            sn=sn,
-        )
-
-        self.embed_noise_label = EmbedNoise(z_dim, _facify(start_channels*2, fac), sn=sn)
-        self.combined = GeneratorCombined1Block(
-            _facify(start_channels*4, fac), _facify(start_channels*2, fac), sn=sn
-        )
-
-        to_image_blocks = [
-            Residual3DConvBlock(
-                _facify(start_channels*2, fac), _facify(start_channels, fac), 3, 1, trans=True, sn=sn
-            ),
-            Residual3DConvBlock(_facify(start_channels, fac), _facify(start_channels/2, fac), 3, 1, trans=True, sn=sn),
-            specnorm(nn.Conv3d(_facify(start_channels/2, fac), 1, kernel_size=1, stride=1)),
-            nn.Sigmoid(),
-        ]
-        self.to_image = nn.Sequential(*tuple(to_image_blocks)).to(device=device)
-
-    def forward(self, z, l, c):
-        z_l = torch.cat((z, l), dim=1)
-        embedded_c = self.embed_condition(c)
-        down = self.downsample_cond(embedded_c)
-        embedded_z_l = self.embed_noise_label(z_l)
-        out = self.combined(embedded_z_l, down)
-        out = torch.cat((out, embedded_c), dim=1)
-        out = self.to_image(out)
-
-        return out
-
-
-
-class AtomCrit_tiny(nn.Module):
-    def __init__(
-        self, in_channels, start_channels, fac=1, sn: int = 0, device=None
-    ):
-        super().__init__()
-        specnorm = _sn_to_specnorm(sn)
-        self.step1 = specnorm(
-            nn.Conv3d(
-                in_channels=in_channels,
-                out_channels=_facify(start_channels, fac),
-                kernel_size=5,
-                stride=1,
-                padding=compute_same_padding(5, 1, 1),
-            )
-        )
-        self.step2 = nn.LeakyReLU()
-
-        self.step3 = specnorm(
-            nn.Conv3d(
-                in_channels=_facify(start_channels, fac),
-                out_channels=_facify(start_channels*2, fac),
-                kernel_size=3,
-                stride=2,
-                padding=compute_same_padding(3, 1, 1),
-            )
-        )
-        self.step4 = nn.GroupNorm(1, _facify(start_channels*2, fac))
-        self.step5 = nn.LeakyReLU()
-
-        self.step6 = specnorm(
-            nn.Conv3d(
-                in_channels=_facify(start_channels*2, fac),
-                out_channels=_facify(start_channels*2, fac),
-                kernel_size=3,
-                stride=1,
-                padding=compute_same_padding(3, 1, 1),
-            )
-        )
-        self.step7 = nn.GroupNorm(1, _facify(start_channels*2, fac))
-        self.step8 = nn.LeakyReLU()
-
-        self.step9 = specnorm(
-            nn.Conv3d(
-                in_channels=_facify(start_channels*2, fac),
-                out_channels=_facify(start_channels, fac),
-                kernel_size=4,
-                stride=1,
-                padding=0,
-            )
-        )
-        self.step10 = nn.GroupNorm(1, _facify(start_channels, fac))
-        self.step11 = nn.LeakyReLU()
-
-        self.to_critic_value = specnorm(
-            nn.Linear(
-                in_features=_facify(start_channels, fac), out_features=1
-            )
-        )
-
-    def forward(self, inputs):
-        out = self.step1(inputs)
-        out = self.step2(out)
-        out = self.step3(out)
-        out = self.step4(out)
-        out = self.step5(out)
-        out = self.step6(out)
-        out = self.step7(out)
-        out = self.step8(out)
-        out = self.step9(out)
-        out = self.step10(out)
-        out = self.step11(out)
-        out = torch.flatten(out, start_dim=1, end_dim=-1)
-        out = self.to_critic_value(out)
-        return out
-
-class AtomCrit(nn.Module):
-    def __init__(
-        self, in_channels, start_channels, fac=1, sn: int = 0, device=None
-    ):
-        super().__init__()
-        specnorm = _sn_to_specnorm(sn)
-        self.step1 = specnorm(
-            nn.Conv3d(
-                in_channels=in_channels,
-                out_channels=_facify(start_channels, fac),
-                kernel_size=5,
-                stride=1,
-                padding=compute_same_padding(5, 1, 1),
-            )
-        )
-        self.step2 = nn.LeakyReLU()
-
-        self.step4 = Residual3DConvBlock(
-            in_channels=_facify(start_channels, fac),
-            n_filters=_facify(start_channels*2, fac),
-            kernel_size=3,
-            stride=2,
-            sn=sn,
-            device=device,
-        )
-
-        self.step6 = specnorm(
-            nn.Conv3d(
-                in_channels=_facify(start_channels*2, fac),
-                out_channels=_facify(start_channels*2, fac),
-                kernel_size=3,
-                stride=1,
-                padding=compute_same_padding(3, 1, 1),
-            )
-        )
-        self.step7 = nn.GroupNorm(1, _facify(start_channels*2, fac))
-        self.step8 = nn.LeakyReLU()
-
-        self.step9 = specnorm(
-            nn.Conv3d(
-                in_channels=_facify(start_channels*2, fac),
-                out_channels=_facify(start_channels, fac),
-                kernel_size=4,
-                stride=1,
-                padding=0,
-            )
-        )
-        self.step10 = nn.GroupNorm(1, _facify(start_channels, fac))
-        self.step11 = nn.LeakyReLU()
-
-        self.to_critic_value = specnorm(
-            nn.Linear(
-                in_features=_facify(start_channels, fac), out_features=1
-            )
-        )
-
-    def forward(self, inputs):
-        out = self.step1(inputs)
-        out = self.step2(out)
-        #out = self.step3(out)
-        out = self.step4(out)
-        #out = self.step5(out)
-        out = self.step6(out)
-        out = self.step7(out)
-        out = self.step8(out)
-        out = self.step9(out)
-        out = self.step10(out)
-        out = self.step11(out)
-        out = torch.flatten(out, start_dim=1, end_dim=-1)
-        out = self.to_critic_value(out)
-        return out
-
-
-class AtomCrit_big(nn.Module):
-    def __init__(
-        self, in_channels, start_channels, fac=1, sn: int = 0, device=None
-    ):
-        super().__init__()
-        specnorm = _sn_to_specnorm(sn)
-        self.step1 = specnorm(
-            nn.Conv3d(
-                in_channels=in_channels,
-                out_channels=_facify(start_channels, fac),
-                kernel_size=5,
-                stride=1,
-                padding=compute_same_padding(5, 1, 1),
-            )
-        )
-        self.step2 = nn.LeakyReLU()
-
-        self.step3 = Residual3DConvBlock(
-            in_channels=_facify(start_channels, fac),
-            n_filters=_facify(start_channels, fac),
-            kernel_size=3,
-            stride=1,
-            sn=sn,
-            device=device,
-        )
-        self.step4 = Residual3DConvBlock(
-            in_channels=_facify(start_channels, fac),
-            n_filters=_facify(start_channels*2, fac),
-            kernel_size=3,
-            stride=2,
-            sn=sn,
-            device=device,
-        )
-        self.step5 = Residual3DConvBlock(
-            in_channels=_facify(start_channels*2, fac),
-            n_filters=_facify(start_channels*2, fac),
-            kernel_size=3,
-            stride=1,
-            sn=sn,
-            device=device,
-        )
-
-        self.step6 = specnorm(
-            nn.Conv3d(
-                in_channels=_facify(start_channels*2, fac),
-                out_channels=_facify(start_channels*2, fac),
-                kernel_size=3,
-                stride=1,
-                padding=compute_same_padding(3, 1, 1),
-            )
-        )
-        self.step7 = nn.GroupNorm(1, _facify(start_channels*2, fac))
-        self.step8 = nn.LeakyReLU()
-
-        self.step9 = specnorm(
-            nn.Conv3d(
-                in_channels=_facify(start_channels*2, fac),
-                out_channels=_facify(start_channels, fac),
-                kernel_size=4,
-                stride=1,
-                padding=0,
-            )
-        )
-        self.step10 = nn.GroupNorm(1, _facify(start_channels, fac))
-        self.step11 = nn.LeakyReLU()
-
-        self.to_critic_value = specnorm(
-            nn.Linear(
-                in_features=_facify(start_channels, fac), out_features=1
-            )
-        )
-
-    def forward(self, inputs):
-        out = self.step1(inputs)
-        out = self.step2(out)
-        out = self.step3(out)
-        out = self.step4(out)
-        out = self.step5(out)
-        out = self.step6(out)
-        out = self.step7(out)
-        out = self.step8(out)
-        out = self.step9(out)
-        out = self.step10(out)
-        out = self.step11(out)
-        out = torch.flatten(out, start_dim=1, end_dim=-1)
-        out = self.to_critic_value(out)
-        return out
-
-
-class AtomCrit_tiny16(nn.Module):
-    def __init__(
-        self, in_channels, start_channels, fac=1, sn: int = 0, device=None
-    ):
-        super().__init__()
-        specnorm = _sn_to_specnorm(sn)
-        self.step1 = specnorm(
-            nn.Conv3d(
-                in_channels=in_channels,
-                out_channels=_facify(start_channels, fac),
-                kernel_size=5,
-                stride=1,
-                padding=compute_same_padding(5, 1, 1),
-            )
-        )
-        self.step2 = nn.LeakyReLU()
-
-        self.step3 = specnorm(
-            nn.Conv3d(
-                in_channels=_facify(start_channels, fac),
-                out_channels=_facify(start_channels*2, fac),
-                kernel_size=3,
-                stride=2,
-                padding=compute_same_padding(3, 1, 1),
-            )
-        )
-        self.step4 = nn.GroupNorm(1, _facify(start_channels*2, fac))
-        self.step5 = nn.LeakyReLU()
-
-        self.step6 = specnorm(
-            nn.Conv3d(
-                in_channels=_facify(start_channels*2, fac),
-                out_channels=_facify(start_channels*2, fac),
-                kernel_size=3,
-                stride=1,
-                padding=compute_same_padding(3, 1, 1),
-            )
-        )
-        self.step7 = nn.GroupNorm(1, _facify(start_channels*2, fac))
-        self.step8 = nn.LeakyReLU()
-
-        self.step9 = specnorm(
-            nn.Conv3d(
-                in_channels=_facify(start_channels*2, fac),
-                out_channels=_facify(start_channels*4, fac),
-                kernel_size=3,
-                stride=2,
-                padding=compute_same_padding(3, 1, 1),
-            )
-        )
-        self.step10 = nn.GroupNorm(1, _facify(start_channels*4, fac))
-        self.step11 = nn.LeakyReLU()
-
-        self.step12 = specnorm(
-            nn.Conv3d(
-                in_channels=_facify(start_channels*4, fac),
-                out_channels=_facify(start_channels, fac),
-                kernel_size=4,
-                stride=1,
-                padding=0,
-            )
-        )
-        self.step13 = nn.GroupNorm(1, _facify(start_channels, fac))
-        self.step14 = nn.LeakyReLU()
-
-        self.to_critic_value = specnorm(
-            nn.Linear(
-                in_features=_facify(start_channels, fac), out_features=1
-            )
-        )
-
-    def forward(self, inputs):
-        out = self.step1(inputs)
-        out = self.step2(out)
-        out = self.step3(out)
-        out = self.step4(out)
-        out = self.step5(out)
-        out = self.step6(out)
-        out = self.step7(out)
-        out = self.step8(out)
-        out = self.step9(out)
-        out = self.step10(out)
-        out = self.step11(out)
-        out = self.step12(out)
-        out = self.step13(out)
-        out = self.step14(out)
-        out = torch.flatten(out, start_dim=1, end_dim=-1)
-        out = self.to_critic_value(out)
-        return out
-
-
-class AtomCrit16(nn.Module):
-    def __init__(
-        self, in_channels, start_channels, fac=1, sn: int = 0, device=None
-    ):
-        super().__init__()
-        specnorm = _sn_to_specnorm(sn)
-        self.step1 = specnorm(
-            nn.Conv3d(
-                in_channels=in_channels,
-                out_channels=_facify(start_channels, fac),
-                kernel_size=5,
-                stride=1,
-                padding=compute_same_padding(5, 1, 1),
-            )
-        )
-        self.step2 = nn.LeakyReLU()
-
-        self.step4 = Residual3DConvBlock(
-            in_channels=_facify(start_channels, fac),
-            n_filters=_facify(start_channels*2, fac),
-            kernel_size=3,
-            stride=2,
-            sn=sn,
-            device=device,
-        )
-
-        self.step5 = Residual3DConvBlock(
-            in_channels=_facify(start_channels*2, fac),
-            n_filters=_facify(start_channels*4, fac),
-            kernel_size=3,
-            stride=2,
-            sn=sn,
-            device=device,
-        )
-
-
-        self.step6 = specnorm(
-            nn.Conv3d(
-                in_channels=_facify(start_channels*4, fac),
-                out_channels=_facify(start_channels*4, fac),
-                kernel_size=3,
-                stride=1,
-                padding=compute_same_padding(3, 1, 1),
-            )
-        )
-        self.step7 = nn.GroupNorm(1, _facify(start_channels*4, fac))
-        self.step8 = nn.LeakyReLU()
-
-        self.step9 = specnorm(
-            nn.Conv3d(
-                in_channels=_facify(start_channels*4, fac),
-                out_channels=_facify(start_channels, fac),
-                kernel_size=4,
-                stride=1,
-                padding=0,
-            )
-        )
-        self.step10 = nn.GroupNorm(1, _facify(start_channels, fac))
-        self.step11 = nn.LeakyReLU()
-
-        self.to_critic_value = specnorm(
-            nn.Linear(
-                in_features=_facify(start_channels, fac), out_features=1
-            )
-        )
-
-    def forward(self, inputs):
-        out = self.step1(inputs)
-        out = self.step2(out)
-        #out = self.step3(out)
-        out = self.step4(out)
-        out = self.step5(out)
-        #out = self.step5(out)
-        out = self.step6(out)
-        out = self.step7(out)
-        out = self.step8(out)
-        out = self.step9(out)
-        out = self.step10(out)
-        out = self.step11(out)
-        out = torch.flatten(out, start_dim=1, end_dim=-1)
-        out = self.to_critic_value(out)
-        return out

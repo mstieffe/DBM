@@ -1,16 +1,42 @@
-import itertools
-import numpy as np
-import networkx as nx
 import math
 from dbm.mol import *
 
 
 class Local_Env():
 
+    """
+    Local_Env is a class that represents a local environment around a given bead in a molecular system.
+
+    Attributes:
+    - bead: a Bead object that represents the central bead of the local environment.
+    - beads: a list of Bead objects that are in the local environment.
+    - mol: a Molecule object that represents the entire molecule that the bead belongs to.
+    - beads_intra: a list of Bead objects that are in the same molecule as the central bead.
+    - beads_inter: a list of Bead objects that are in different molecules than the central bead.
+    - atoms: a list of Atom objects that are in the local environment.
+    - atoms_intra: a list of Atom objects that are in the same molecule as the central bead.
+    - atoms_intra_heavy: a list of Atom objects that are in the same molecule as the central bead and have a mass of at least 2.0.
+    - atoms_inter: a list of Atom objects that are in different molecules than the central bead.
+    - box: a Box object that represents the simulation box the molecule is in.
+    - rot_mat: a 3x3 numpy array representing the rotation matrix used to align the local environment to a reference frame.
+    - atoms_index_dict: a dictionary that maps Atom objects to their indices
+    - beads_index_dict: a dictionary that maps Bead objects to their indices
+
+    Methods:
+    - get_indices(atoms): given a list of Atom objects, returns a list of their corresponding indices in the local env atoms list.
+    - get_cg_indices(beads): given a list of Bead objects, returns a list of their corresponding indices in the local env bead list.
+    - rot(positions): given a list of coordinates, rotate the coordinates for local alignment
+    - rot_back(positions): given a list of coordinates, rotate the coordinates back to original orientation
+    - bead_positions(): compute bead positions in the local environment relative to the central bead
+    - atom_positions(): compute atom positions in the local environment relative to the central bead
+    - atom_positions_ref(): compute reference atom positions in the local environment relative to the central bead
+    - rotation_mtx(bead): Given a bead, which is used as fixpoint, compute rotation matrix
+    to align the local environment of the system to the z-axis (align edge of central bead with fixpoint bead to z-axis)
+    """
+
     def __init__(self, bead, beads, box):
 
         self.bead = bead
-        #self.atoms = bead.atoms
         self.mol = bead.mol
         self.beads = beads
         self.beads_intra = [b for b in self.beads if b in self.mol.beads]
@@ -26,6 +52,7 @@ class Local_Env():
 
         self.box = box
 
+        # Alignment of the local environment using a fixpoint
         if self.bead.fp is None:
             self.rot_mat = np.identity(3)
         elif type(self.bead.fp) is Bead:
@@ -34,87 +61,107 @@ class Local_Env():
             else:
                 fp = self.box.diff_vec(self.bead.center - self.bead.fp.center)
             self.rot_mat = self.rot_mat(fp)
-        elif type(self.bead.fp) is tuple:
-            fp = self.box.diff_vec(self.bead.fp[0].ref_pos - self.bead.fp[1].ref_pos)
-            #add small distortion to align vector if aligned at atom coordinates
-            #self.rot_mat = self.rot_mat(fp, distortion=np.pi/9.0)
-            self.rot_mat = self.rot_mat(fp, distortion=0.0)
-
         else:
             raise Exception('something wrong with the alignment!')
 
         self.atoms_index_dict = dict(zip(self.atoms, range(0, len(self.atoms))))
         self.beads_index_dict = dict(zip(self.beads, range(0, len(self.beads))))
 
-    def featvec_intra(self):
-        featvec_intra = np.zeros((len(self.atoms), 1))
-        for a in self.atoms_intra:
-            if a not in self.bead.atoms:
-                featvec_intra[self.atoms_index_dict[a], 0] = 1
-        return featvec_intra
-
-
     def get_indices(self, atoms):
+        # Return indices for given atoms in the list of local environment atoms
         indices = []
         for a in atoms:
             indices.append(self.atoms_index_dict[a])
         return indices
 
     def get_cg_indices(self, beads):
+        # Return indices for given beads in the list of local environment beads
         indices = []
         for b in beads:
             indices.append(self.beads_index_dict[b])
         return indices
 
     def rot(self, pos):
+        # rotate positions for local alignment
         return np.dot(pos, self.rot_mat)
 
     def rot_back(self, pos):
+        # rotate positions back to original orientation
         return np.dot(pos, self.rot_mat.T)
 
     def bead_positions(self, kick=0.0):
+        # Compute bead positions in the local environment relative to the central bead
+
+        # Get relative positions of beads with respect to the center bead
         positions = [b.center - self.bead.center for b in self.beads]
-        #positions = np.dot(np.array(positions), self.rot_mat)
+
+        # Apply box boundary conditions
         positions = [self.box.diff_vec(pos) for pos in positions]
+
+        # Rotate positions for local alignment
         positions = self.rot(positions)
+
+        # Add random noise to positions (typically not used)
         positions = positions + np.random.normal(-kick, kick, positions.shape)
+
         return positions
 
 
     def atom_positions(self):
+        # Compute atom positions in the local environment relative to the central bead
+
+        # Get absolute positions of atoms in the system
         positions = [a.pos + a.bead.center - self.bead.center for a in self.atoms]
-        #positions = np.dot(np.array(positions), self.rot_mat)
+
+        # Apply box boundary conditions
         positions = [self.box.diff_vec(pos) for pos in positions]
+
+        # Rotate positions for local alignment
         positions = self.rot(positions)
+
         return positions
 
     def atom_positions_ref(self):
+        # Compute reference atom positions in the local environment relative to the central bead
+
+        # Get absolute positions of atoms in the system
+
         positions = [a.ref_pos + a.bead.center - self.bead.center for a in self.atoms]
-        #positions = np.dot(np.array(positions), self.rot_mat)
+
+        # Apply box boundary conditions
         positions = [self.box.diff_vec(pos) for pos in positions]
+
+        # Rotate positions for local alignment
         positions = self.rot(positions)
+
         return positions
 
     def rot_mat(self, fixpoint, distortion=None):
-        #compute rotation matrix to align loc env (aligns fixpoint vector with z-axis)
+        # Compute rotation matrix to align the local environment of the system to the z-axis
+
+        # Define a vector pointing towards the z-axis
         v1 = np.array([0.0, 0.0, 1.0])
+
+        # Apply distortion to the target axis (if provided)(typically not used)
         if distortion:
             #distortion in RAD, example: distortion = pi/9 (20°) -> target axis will be shifted at max. 20° away from (0,0,1)
             alpha = np.random.uniform(2*np.pi)
             random_len = np.random.uniform(1.0)*np.tan(distortion)
             v1 = np.array([np.cos(alpha)*random_len, np.sin(alpha)*random_len, 1.0])
+
+        # Define the fixpoint vector (target direction of rotation)
         v2 = fixpoint
 
-        #rotation axis
+        # Compute the rotation axis
         v_rot = np.cross(v1, v2)
         v_rot =  v_rot / np.linalg.norm(v_rot)
 
-        #rotation angle
+        # Compute the rotation angle
         cosang = np.dot(v1, v2)
         sinang = np.linalg.norm(np.cross(v1, v2))
         theta = np.arctan2(sinang, cosang)
 
-        #rotation matrix
+        # Compute the rotation matrix
         a = math.cos(theta / 2.0)
         b, c, d = -v_rot * math.sin(theta / 2.0)
         aa, bb, cc, dd = a * a, b * b, c * c, d * d
@@ -125,135 +172,5 @@ class Local_Env():
 
         return rot_mat
 
-    def chn_aa_featvec(self, atoms):
-        atom_featvec = np.concatenate((np.zeros((len(self.atoms), 1)), np.ones((len(self.atoms), 1))), axis=1)
-        indices = self.get_indices(atoms)
-        for i in indices:
-            atom_featvec[i, 0] = 1
-            atom_featvec[i, 1] = 0
-        return atom_featvec
 
-    def chn_cg_featvec(self, beads):
-        bead_featvec = np.concatenate((np.zeros((len(self.beads), 1)), np.ones((len(self.beads), 1))), axis=1)
-        indices = self.get_cg_indices(beads)
-        for i in indices:
-            bead_featvec[i, 0] = 1
-            bead_featvec[i, 1] = 0
-        return bead_featvec
-
-class Top():
-
-    def __init__(self, atom, loc_env, predecessors, ff):
-
-        self.atom = atom
-        self.loc_env = loc_env
-        self.predecessors = predecessors
-        self.ff = ff
-
-        self.bonds = self.get_bonds()
-        self.angles = self.get_angles()
-        self.dihs = self.get_dihs()
-        self.dihs_rb = self.get_dihs_rb()
-        self.ljs = self.get_ljs()
-
-    def filter_heavy(self, atoms):
-        return [a for a in atoms if a.type.mass >= 2.0]
-
-    def filter_predecessors(self, atoms):
-        return [a for a in atoms if a in self.predecessors]
-
-    def get_bonds(self):
-        bonds = {'all': [], 'heavy': [], 'predecessor': []}
-        for bond in self.atom.mol.bonds:
-            if self.atom in bond.atoms:
-                bond.atoms.remove(self.atom) #current atom should always be the first element in the atom list
-                bond.atoms = [self.atom] + bond.atoms
-                bonds['all'].append(bond)
-                if len(self.filter_heavy(bond.atoms)) == 2:
-                    bonds['heavy'].append(bond)
-                if len(self.filter_predecessors(bond.atoms)) == 1:
-                    bonds['predecessor'].append(bond)
-        return bonds
-
-    def get_angles(self):
-        angles = {'all': [], 'heavy': [], 'predecessor': []}
-        for angle in self.atom.mol.angles:
-            if self.atom in angle.atoms:
-                angles['all'].append(angle)
-                if len(self.filter_heavy(angle.atoms)) == 3:
-                    angles['heavy'].append(angle)
-                if len(self.filter_predecessors(angle.atoms)) == 2:
-                    angles['predecessor'].append(angle)
-        return angles
-
-    def get_dihs(self):
-        dihs = {'all': [], 'heavy': [], 'predecessor': []}
-        for dih in self.atom.mol.dihs:
-            if self.atom in dih.atoms:
-                dihs['all'].append(dih)
-                if len(self.filter_heavy(dih.atoms)) == 4:
-                    dihs['heavy'].append(dih)
-                if len(self.filter_predecessors(dih.atoms)) == 3:
-                    dihs['predecessor'].append(dih)
-        return dihs
-
-    def get_dihs_rb(self):
-        dihs = {'all': [], 'heavy': [], 'predecessor': []}
-        for dih in self.atom.mol.dihs_rb:
-            if self.atom in dih.atoms:
-                dihs['all'].append(dih)
-                if len(self.filter_heavy(dih.atoms)) == 4:
-                    dihs['heavy'].append(dih)
-                if len(self.filter_predecessors(dih.atoms)) == 3:
-                    dihs['predecessor'].append(dih)
-        return dihs
-
-    def get_ljs(self):
-        ljs = {}
-        excl_atoms = []
-        for excl in self.atom.mol.excls:
-            if self.atom in excl:
-                excl_atoms.append(excl)
-        excl_atoms = list(set(itertools.chain.from_iterable(excl_atoms)))
-        if self.atom in excl_atoms: excl_atoms.remove(self.atom)
-
-        pair_atoms = []
-        for pair in self.atom.mol.pairs:
-            if self.atom in pair:
-                pair_atoms.append(pair)
-        pair_atoms = list(set(itertools.chain.from_iterable(pair_atoms)))
-        if self.atom in pair_atoms: pair_atoms.remove(self.atom)
-
-        #nexcl_atoms: bonded atoms up to n_excl
-        lengths, paths = nx.single_source_dijkstra(self.atom.mol.G, self.atom, cutoff=self.ff.n_excl)
-        n_excl_atoms = list(set(itertools.chain.from_iterable(paths.values())))
-        excl_atoms = n_excl_atoms + excl_atoms
-        lj_atoms_intra = list(set(self.loc_env.atoms_intra) - set(excl_atoms))
-
-        lj_atoms_intra = set(lj_atoms_intra + pair_atoms)
-
-        ljs['intra_all'] = self.ff.make_ljs(self.atom, lj_atoms_intra)
-        ljs['intra_heavy'], ljs['intra_predecessor'] = [], []
-        for lj in ljs['intra_all']:
-            if len(self.filter_heavy(lj.atoms)) == 2:
-                ljs['intra_heavy'].append(lj)
-            if len(self.filter_predecessors(lj.atoms)) == 1:
-                ljs['intra_predecessor'].append(lj)
-        ljs['inter'] = self.ff.make_ljs(self.atom, self.loc_env.atoms_inter)
-        ljs['inter_heavy'] = []
-        for lj in ljs['inter']:
-            if len(self.filter_heavy(lj.atoms)) == 2:
-                ljs['inter_heavy'].append(lj)
-        ljs['all'] = ljs['intra_all'] + ljs['inter']
-        #ljs['heavy'] = ljs['intra_heavy'] + ljs['inter_heavy']
-        ljs['heavy'] = ljs['intra_heavy'] + ljs['inter']
-
-        ljs['predecessor'] = ljs['intra_predecessor'] + ljs['inter']
-        #if self.atom.type.mass >= 2.0:
-        #    ljs['predecessor'] = ljs['intra_predecessor'] + ljs['inter_heavy']
-        #else:
-        #    ljs['predecessor'] = ljs['intra_predecessor'] + ljs['inter']
-
-
-        return ljs
 

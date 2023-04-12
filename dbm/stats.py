@@ -1,16 +1,26 @@
 import numpy as np
 import networkx as nx
 from pathlib import Path
-from scipy.stats import entropy
-from dbm.universe import *
-from dbm.fig import *
+import math
+from dbm.fig import Fig
 from dbm.recurrent_generator import Recurrent_Generator
 from itertools import islice
+import itertools
 import random
 import matplotlib.pyplot as plt
 
 class Stats():
+    """
+    This class is responsible for generating statistics and plots for molecular structures.
+    The `evaluate` method calculates and saves bond, angle, dihedral distributions, Lennard-Jones potential energy,
+    and radial distribution function distributions for the molecular system. The `save_samples` method
+    saves the simulation data as .gro files. The `make_histo` method calculates a histogram of the
+    input data.
 
+    Attributes:
+    - data: the molecular data to be analyzed
+    - path: the path where the statistics will be saved
+    """
     def __init__(self, data, dir=None):
 
         self.data = data
@@ -21,7 +31,14 @@ class Stats():
         self.path.mkdir(exist_ok=True)
 
     def evaluate(self, train=False, subdir=None):
-        # evaluate for every folder stored in data
+        """
+        Calculates and saves bond, angle, dihedral, Lennard-Jones potential energy distributions,
+        and radial distribution function distributions for the molecular structure.
+
+        Args:
+        - train: whether to evaluate the training set or validation set (default: False)
+        - subdir: a subdirectory where the statistics will be saved (default: None)
+        """
         if train:
             samples_dict = self.data.dict_train
         else:
@@ -32,7 +49,7 @@ class Stats():
             if subdir:
                 p = p / subdir
                 p.mkdir(exist_ok=True)
-            #bonds
+            # Bonds
             bond_fig = Fig(p/"bonds.pdf", len(self.data.ff.bond_types))
             for bond_name in self.data.ff.bond_types.keys():
                 bm_dstr = self.bond_dstr(bond_name, samples)
@@ -40,7 +57,7 @@ class Stats():
                 plot_dict = {"title": bond_name, "xlabel": "d [nm]", "ylabel": "p"}
                 bond_fig.add_plot(bm_dstr, plot_dict, ref_dstr)
             bond_fig.save()
-            #angles
+            # Angles
             angle_fig = Fig(p/"angles.pdf", len(self.data.ff.angle_types))
             for angle_name in self.data.ff.angle_types.keys():
                 bm_dstr = self.angle_dstr(angle_name, samples)
@@ -48,7 +65,7 @@ class Stats():
                 plot_dict = {"title": angle_name, "xlabel": "angle [°]", "ylabel": "p"}
                 angle_fig.add_plot(bm_dstr, plot_dict, ref_dstr)
             angle_fig.save()
-            #dihs
+            # Dihedrals
             dih_fig = Fig(p/"dihs.pdf", len(self.data.ff.dih_types))
             for dih_name in self.data.ff.dih_types.keys():
                 bm_dstr = self.dih_dstr(dih_name, samples)
@@ -56,40 +73,37 @@ class Stats():
                 plot_dict = {"title": dih_name, "xlabel": "dihedral [°]", "ylabel": "p"}
                 dih_fig.add_plot(bm_dstr, plot_dict, ref_dstr)
             dih_fig.save()
-            #LJ
+            # LJ
             lj_fig = Fig(p/"lj.pdf", 2)
             bm_lj = self.lj_per_mol_dstr(samples)
             ref_lj = self.lj_per_mol_dstr(samples, ref=True)
             plot_dict = {"title": "LJ", "xlabel": "E [kJ/mol]", "ylabel": "p"}
             lj_fig.add_plot(bm_lj, plot_dict, ref_lj)
-            #LJ carbs only
+            # LJ heavy atoms only
             bm_lj = self.lj_per_mol_dstr(samples, key='heavy')
             ref_lj = self.lj_per_mol_dstr(samples,key='heavy', ref=True)
-            plot_dict = {"title": "LJ (carbs)", "xlabel": "E [kJ/mol]", "ylabel": "p"}
+            plot_dict = {"title": "LJ (heavy)", "xlabel": "E [kJ/mol]", "ylabel": "p"}
             lj_fig.add_plot(bm_lj, plot_dict, ref_lj)
             lj_fig.save()
-            #rdf
+            # RDF
             rdf_fig = Fig(p/"rdf.pdf", 2)
             bm_rdf = self.rdf(samples)
             ref_rdf = self.rdf(samples, ref=True)
             plot_dict = {"title": "RDF (all)", "xlabel": "r [nm]", "ylabel": "g(r)"}
             rdf_fig.add_plot(bm_rdf, plot_dict, ref_rdf)
-            #rdf carbs
+            # RDF (only carbons))
             bm_rdf = self.rdf(samples, species=['C', 'C_AR'])
             ref_rdf = self.rdf(samples, species=['C', 'C_AR'], ref=True)
-            plot_dict = {"title": "RDF (carbs)", "xlabel": "r [nm]", "ylabel": "g(r)"}
+            plot_dict = {"title": "RDF (heavy)", "xlabel": "r [nm]", "ylabel": "g(r)"}
             rdf_fig.add_plot(bm_rdf, plot_dict, ref_rdf)
             rdf_fig.save()
 
-    def save_samples(self, train=False, subdir=None, vs=False):
+    def save_samples(self, train=False, subdir=None):
+        # save all samples
         if train:
             samples_dict = self.data.dict_train
         else:
             samples_dict = self.data.dict_val
-        if vs:
-            vs_string = "_vs"
-        else:
-            vs_string = ""
         for name, samples in zip(samples_dict.keys(), samples_dict.values()):
             p = self.path / name
             p.mkdir(exist_ok=True)
@@ -97,7 +111,7 @@ class Stats():
                 p = p / subdir
                 p.mkdir(exist_ok=True)
             for sample in samples:
-                sample.write_gro_file(p / (sample.name + vs_string + ".gro"), vs=vs)
+                sample.write_gro_file(p / (sample.name + ".gro"))
 
 
     def make_histo(self, values, n_bins=80, low=0.0, high=0.2):
@@ -114,7 +128,7 @@ class Stats():
         return dstr
 
     def bond_dstr(self, bond_name, samples, n_bins=80, ref=False):
-        #computes the dstr of bond lengths for a given bond type over all samples stored in data
+        # Computes the dstr of bond lengths for a given bond type over all samples stored in data
 
         dis = []
         for sample in samples:
@@ -139,7 +153,7 @@ class Stats():
         return dstr
 
     def angle_dstr(self, angle_name, samples, n_bins=80, ref=False):
-        #computes the dstr of angles for a given angle type over all samples stored in data
+        # Computes the dstr of angles for a given angle type over all samples stored in data
 
         vec1, vec2 = [], []
         for sample in samples:
@@ -182,7 +196,7 @@ class Stats():
         return dstr
 
     def dih_dstr(self, dih_name, samples, n_bins=80, low=0.0, high=360., ref=False):
-        #computes the dstr of angles for a given dih type over all samples stored in data
+        # Computes the dstr of angles for a given dih type over all samples stored in data
 
         plane1, plane2 = [], []
         vec1, vec2, vec3 = [], [], []
@@ -229,7 +243,7 @@ class Stats():
         return dstr
 
     def lj_per_mol_dstr(self, samples, key='all', n_bins=80, low=-600, high=400.0, ref=False):
-        # computes the dstr of molecule-wise lj energies over all samples stored in data
+        # Computes the dstr of molecule-wise lj energies over all samples stored in data
 
         energies = []
         for sample in samples:
@@ -247,10 +261,7 @@ class Stats():
 
 
     def rdf(self, samples, n_bins=40, species=None, ref=False, excl=3, n_max=10000):
-        #computes the rdf over all samples stored in data
-
-        #just for testing
-        from itertools import product
+        # Computes the rdf over all samples stored in data
 
         rdf = {}
         n_samples = len(samples)
@@ -271,7 +282,6 @@ class Stats():
             else:
                 x = np.array([sample.box.move_inside(a.pos + a.bead.center) for a in atoms])
 
-            atom_tuples = product(atoms, repeat=2)
 
             if atoms != []:
 
@@ -300,54 +310,7 @@ class Stats():
 
                 #print(d.shape)
                 d = d.flatten()
-                """
-                print(d.shape)
-                close_atoms=[]
-                for s, a in zip(d, atom_tuples):
-                    if s < 2.5:
-                        close_atoms.append(a)
-                close_atoms = set([item for sublist in close_atoms for item in sublist])
-                close_beads = set([a.bead for a in close_atoms])
-                print("asdkjasdkj")
-                print(close_beads)
-                print(len(close_beads))
 
-                with open("close_beads.gro", 'w') as f:
-                    f.write('{:s}\n'.format("close_beads"))
-                    f.write('{:5d}\n'.format(len(close_beads)))
-
-                    n = 1
-                    for b in close_beads:
-                        type_name = b.type.name
-                        f.write('{:5d}{:5s}{:>5s}{:5d}{:8.3f}{:8.3f}{:8.3f}{:8.3f}{:8.3f}{:8.3f}\n'.format(
-                            b.mol.index,
-                            b.mol.name,
-                            type_name + str(b.mol.beads.index(b) + 1),
-                            n % 100000,
-                            b.center[0],
-                            b.center[1],
-                            b.center[2],
-                            0, 0, 0))
-                        n = n + 1
-
-                with open("close_atoms.gro", 'w') as f:
-                    f.write('{:s}\n'.format("close_atoms"))
-                    f.write('{:5d}\n'.format(len(close_atoms)))
-
-                    n = 1
-                    for b in close_atoms:
-                        type_name = b.type.name
-                        f.write('{:5d}{:5s}{:>5s}{:5d}{:8.3f}{:8.3f}{:8.3f}{:8.3f}{:8.3f}{:8.3f}\n'.format(
-                            b.mol.index,
-                            b.mol.name,
-                            type_name + str(b.mol.atoms.index(b) + 1),
-                            n % 100000,
-                            b.ref_pos[0] + b.bead.center[0],
-                            b.ref_pos[1] + b.bead.center[1],
-                            b.ref_pos[2] + b.bead.center[2],
-                            0, 0, 0))
-                        n = n + 1
-                """
                 d = d[d != 0.0]
 
 
@@ -365,43 +328,6 @@ class Stats():
                 else:
                     rdf[(i+0.5)*dr] = val/n_samples
         return rdf
-
-    def jsd(self, p, q, base=2.0):
-        '''
-            Implementation of pairwise `jsd` based on
-            https://en.wikipedia.org/wiki/Jensen%E2%80%93Shannon_divergence
-        '''
-        ## convert to np.array
-        p, q = np.asarray(p), np.asarray(q)
-        ## normalize p, q to probabilities
-        p, q = p / p.sum(), q / q.sum()
-        m = 1. / 2 * (p + q)
-        return entropy(p, m, base=base) / 2. + entropy(q, m, base=base) / 2.
-
-    def bond_energy(self, samples, ref=False):
-        energies = []
-        for sample in samples:
-            energies.append(sample.energy.bond_pot(ref=ref))
-        return energies
-
-    def angle_energy(self, samples, ref=False):
-        energies = []
-        for sample in samples:
-            energies.append(sample.energy.angle_pot(ref=ref))
-        return energies
-
-    def dih_energy(self, samples, ref=False):
-        energies = []
-        for sample in samples:
-            energies.append(sample.energy.dih_pot(ref=ref))
-        return energies
-
-
-    def lj_energy(self, samples, ref=False, shift=False, cutoff=1.0):
-        energies = []
-        for sample in samples:
-            energies.append(sample.energy.lj_pot(ref=ref, shift=shift, cutoff=cutoff))
-        return energies
 
     def plot_envs(self, hydrogens=False, gibbs=False, train=False, rand_rot=False, pad_seq=False, ref_pos=False, width=1.0):
 

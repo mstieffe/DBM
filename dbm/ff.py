@@ -351,7 +351,7 @@ class FF():
         return np.array(params)
 
 
-class Energy():
+class Energy_NP():
 
     def __init__(self, tops, box, key='all'):
         bonds, angles, dihs, ljs = [], [], [], []

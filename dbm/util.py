@@ -7,6 +7,24 @@ from torch.nn.modules.module import _addindent
 import os
 
 
+def transpose_and_zip(args):
+    args = tuple(torch.transpose(x, 0, 1) for x in args)
+    elems = zip(*args)
+    return elems
+
+def transpose(t):
+    return tuple(torch.transpose(x, 0, 1) for x in t)
+
+def insert_dim(t):
+    return tuple(x[None, :] for x in t)
+
+def repeat(t, bs):
+    return tuple(torch.stack(bs * [x]) for x in t)
+
+def to_voxel(coords, grid, sigma):
+    coords = coords[..., None, None, None]
+    return torch.exp(-1.0 * torch.sum((grid - coords) * (grid - coords), axis=2) / sigma).float()
+
 def read_between(start, end, file):
     # generator to yield line between start and end
     file = open(file)
