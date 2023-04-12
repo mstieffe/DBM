@@ -1,12 +1,12 @@
 # DBM
 
-![DBM generates Boltzmann-equilibrated atomistic structures conditional on the CG configuration using an adversarial network. It is designed for the backmapping of a condensed-phase molecular systems.](/images/intro.png)
-
-This is the code for the DBM algorithm accompanying our recent publications
+This is the code for the DBM algorithm accompanying our recent publications:
 - [Adversarial reverse mapping of equilibrated condensed-phase molecular structures](https://iopscience.iop.org/article/10.1088/2632-2153/abb6d4/meta) 
 - [Adversarial reverse mapping of condensed-phase molecular structures: Chemical transferability](https://arxiv.org/abs/2101.04996) 
 
 DBM is a new method based on ML for the reverse-mapping of molecular systems in the condensed-phase. The method is developed to avoid further energy minimization for relaxation and MD simulations for equilibration of the generated FG structures. Moreover, DBM requires little human intervention, since the reinsertion of local details is learned from training examples.
+
+![DBM generates Boltzmann-equilibrated atomistic structures conditional on the CG configuration using an adversarial network. It is designed for the backmapping of a condensed-phase molecular systems.](/images/intro.png)
 
 The generative adversarial approach is used to train DBM. To this end, a training set consisting of pairs of corresponding CG and FG molecular structures is used. While the target of the generator is to reproduce FG configurations, the CG structures are treated as conditional variables for the generative process. The generator reinserts missing degrees of freedom along CG variables and a discriminator compares the generated structures with the training examples. Since the input for the discriminator consists of both, the CG and the FG configuration, the discriminator evaluates not only the quality of the generated FG structure, but also its consistency with the given CG structure. 
 
