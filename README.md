@@ -7,7 +7,7 @@ This is the code for the DBM algorithm accompanying our recent publications:
 DBM is a new method based on ML for the reverse-mapping of molecular systems in the condensed-phase. The method is developed to avoid further energy minimization for relaxation and MD simulations for equilibration of the generated FG structures. Moreover, DBM requires little human intervention, since the reinsertion of local details is learned from training examples.
 
 <p align="center">
-  <img width="460" height="300" src="/images/intro.png">
+  <img width="460" height="auto" src="/images/intro.png">
 </p>
 
 ![DBM generates Boltzmann-equilibrated atomistic structures conditional on the CG configuration using an adversarial network. It is designed for the backmapping of a condensed-phase molecular systems.](/images/intro.png)
