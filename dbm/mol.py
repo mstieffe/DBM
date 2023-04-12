@@ -200,7 +200,7 @@ class Mol():
         Parameters:
         -----------
         top_file : str
-            The name of the topology file.
+            Path to the topology file.
         ff : object
             The forcefield object to use.
         """

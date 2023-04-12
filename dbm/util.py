@@ -30,12 +30,12 @@ def read_between(start, end, file):
     file = open(file)
     rec = False
     for line in file:
-        if line.startswith(";") or line.startswith("\n"):
+        if line.replace(" ", "").startswith(";") or line.startswith("\n"):
             continue
         if not rec:
-            if line.startswith(start):
+            if line.replace(" ", "").startswith(start):
                 rec = True
-        elif line.startswith(end):
+        elif line.replace(" ", "").startswith(end):
             rec = False
         else:
             yield line

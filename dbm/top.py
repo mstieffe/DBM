@@ -85,7 +85,8 @@ class Top():
         """
         bonds = {'all': [], 'heavy': [], 'predecessor': []}
         for bond in self.atom.mol.bonds:
-            if self.atom in bond.atoms:
+            # Check if Bond contains the atom and if Loc Env contains all atoms involved
+            if self.atom in bond.atoms and set([a.bead for a in bond.atoms]).issubset(set(self.loc_env.beads)):
                 bond.atoms.remove(self.atom) #current atom should always be the first element in the atom list
                 bond.atoms = [self.atom] + bond.atoms
                 bonds['all'].append(bond)
@@ -106,7 +107,8 @@ class Top():
         """
         angles = {'all': [], 'heavy': [], 'predecessor': []}
         for angle in self.atom.mol.angles:
-            if self.atom in angle.atoms:
+            # Check if Angle contains the atom and if Loc Env contains all atoms involved
+            if self.atom in angle.atoms and set([a.bead for a in angle.atoms]).issubset(set(self.loc_env.beads)):
                 angles['all'].append(angle)
                 if len(self.filter_heavy(angle.atoms)) == 3:
                     angles['heavy'].append(angle)
@@ -125,7 +127,8 @@ class Top():
         """
         dihs = {'all': [], 'heavy': [], 'predecessor': []}
         for dih in self.atom.mol.dihs:
-            if self.atom in dih.atoms:
+            # Check if Dih contains the atom and if Loc Env contains all atoms involved
+            if self.atom in dih.atoms and set([a.bead for a in dih.atoms]).issubset(set(self.loc_env.beads)):
                 dihs['all'].append(dih)
                 if len(self.filter_heavy(dih.atoms)) == 4:
                     dihs['heavy'].append(dih)
@@ -144,7 +147,8 @@ class Top():
         """
         dihs = {'all': [], 'heavy': [], 'predecessor': []}
         for dih in self.atom.mol.dihs_rb:
-            if self.atom in dih.atoms:
+            # Check if Dih contains the atom and if Loc Env contains all atoms involved
+            if self.atom in dih.atoms and set([a.bead for a in dih.atoms]).issubset(set(self.loc_env.beads)):
                 dihs['all'].append(dih)
                 if len(self.filter_heavy(dih.atoms)) == 4:
                     dihs['heavy'].append(dih)
@@ -179,7 +183,8 @@ class Top():
         # Find pair atoms (i.e., atoms that have a nonbonded interaction with the current atom) in the molecular system.
         pair_atoms = []
         for pair in self.atom.mol.pairs:
-            if self.atom in pair:
+            # Check if Pair contains the atom and if Loc Env contains all atoms involved
+            if self.atom in pair and set([a.bead for a in pair]).issubset(set(self.loc_env.beads)):
                 pair_atoms.append(pair)
         # Create a list of unique pair atoms.
         pair_atoms = list(set(itertools.chain.from_iterable(pair_atoms)))
