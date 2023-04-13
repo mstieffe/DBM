@@ -334,7 +334,7 @@ class GAN_seq():
             val_iterator = iter(self.loader_val)
 
             # Use tqdm to display a progress bar for the training data loader
-            tqdm_train_iterator = tqdm(self.loader_train, total=steps_per_epoch, leave=False, position=1)
+            tqdm_train_iterator = tqdm(self.loader_train, total=steps_per_epoch, leave=False, position=0)
 
             for train_batch in tqdm_train_iterator:
 
@@ -383,7 +383,7 @@ class GAN_seq():
             d_losses = [sum(loss_epoch[i]) / len(loss_epoch[i]) for i in range(1)]
             g_losses = [sum(loss_epoch[i + 1]) / len(loss_epoch[i + 1]) for i in range(6)]
             msg = f"epoch {self.epoch} steps {self.step} : D: {d_losses} G: {g_losses}"
-            tqdm.write(msg)
+            epochs.write(msg)
 
             # Increment the epoch count
             self.epoch += 1
