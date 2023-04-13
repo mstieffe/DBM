@@ -16,6 +16,7 @@ from dbm.energy import Energy
 from dbm.stats import Stats
 from dbm.dataset import DS
 from dbm.recurrent_generator import Recurrent_Generator
+from time import sleep
 
 #getattr(tqdm, '_instances', {}).clear()
 torch.set_default_dtype(torch.float32)
@@ -315,6 +316,10 @@ class GAN_seq():
 
     def train(self):
         # Method to train the model
+
+        for i in tqdm(range(100)):
+            for j in tqdm(range(100)):
+                sleep(0.01)
 
         # Get the number of steps per epoch, critic iteration count, and save count from the configuration file
         steps_per_epoch = len(self.loader_train)
