@@ -53,7 +53,7 @@ class DS(Dataset):
 
         # print properties
         if verbose:
-            print("Using an {} x {} x {} grid with spacing {} nm".format(self.resolution, self.resolution, self.resolution, self.delta_s))
+            print("Using an ({} x {} x {}) grid with spacing {} nm".format(self.resolution, self.resolution, self.resolution, self.delta_s))
             print("The sigma value for the Gauss-blobb representation is {} nm".format(self.sigma))
             print("Alignment of the local environments is set to {}".format(self.align))
             print("Random rotations during training is set to {}".format(self.rand_rot))

@@ -317,17 +317,13 @@ class GAN_seq():
     def train(self):
         # Method to train the model
 
-        for i in tqdm(range(100)):
-            for j in tqdm(range(100)):
-                sleep(0.01)
-
         # Get the number of steps per epoch, critic iteration count, and save count from the configuration file
         steps_per_epoch = len(self.loader_train)
         n_critic = self.cfg.getint('training', 'n_critic')
         n_save = int(self.cfg.getint('training', 'n_save'))
 
         # Use tqdm to display a progress bar for the number of epochs
-        epochs = tqdm(range(self.epoch, self.cfg.getint('training', 'n_epoch')))
+        epochs = tqdm(range(self.epoch, self.cfg.getint('training', 'n_epoch')), leave=False, position=0)
 
         for epoch in epochs:
             n = 0
@@ -338,7 +334,7 @@ class GAN_seq():
             val_iterator = iter(self.loader_val)
 
             # Use tqdm to display a progress bar for the training data loader
-            tqdm_train_iterator = tqdm(self.loader_train, total=steps_per_epoch, leave=False)
+            tqdm_train_iterator = tqdm(self.loader_train, total=steps_per_epoch, leave=False, position=1)
 
             for train_batch in tqdm_train_iterator:
 
