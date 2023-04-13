@@ -7,7 +7,7 @@ from torch.autograd import grad as torch_grad
 from timeit import default_timer as timer
 from dbm.util import rot_mtx_batch, make_dir, avg_blob, make_grid_np, transpose_and_zip, transpose, insert_dim, repeat, to_voxel
 from dbm.output import OutputHandler
-from tqdm import tqdm
+from tqdm.autonotebook import tqdm
 import dbm.model as model
 from dbm.data import Data
 from dbm.histogram import Histogram
