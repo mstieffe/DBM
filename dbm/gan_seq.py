@@ -17,7 +17,7 @@ from dbm.stats import Stats
 from dbm.dataset import DS
 from dbm.recurrent_generator import Recurrent_Generator
 
-getattr(tqdm, '_instances', {}).clear()
+#getattr(tqdm, '_instances', {}).clear()
 torch.set_default_dtype(torch.float32)
 
 class GAN_seq():

@@ -53,7 +53,7 @@ class DS(Dataset):
 
         # print properties
         if verbose:
-            print("Using an {}x{}x{} grid with spacing {}".format(self.resolution, self.resolution, self.resolution, self.delta_s))
+            print("Using an {} x {} x {} grid with spacing {}".format(self.resolution, self.resolution, self.resolution, self.delta_s))
             print("The sigma value for the Gauss-blobb representation is {}".format(self.sigma))
             print("Alignment of the local environments is set to {}".format(self.align))
             print("Random rotations around alignment-axis is during training is set to {}".format(self.rand_rot))
@@ -113,7 +113,7 @@ class DS(Dataset):
 
         # generate random rotation matrix for training
         if self.rand_rot:
-            R = rand_rot_mtx(self.data.align)
+            R = rand_rot_mtx(self.align)
         else:
             R = np.eye(3)
 
