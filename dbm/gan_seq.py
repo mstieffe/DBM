@@ -322,6 +322,8 @@ class GAN_seq():
         n_critic = self.cfg.getint('training', 'n_critic')
         n_save = int(self.cfg.getint('training', 'n_save'))
 
+        print("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}".format("Epoch", "Step", "Crit", "Gen", "E_tot", "E_bond", "E_ang", "E_dih", "E_LJ"))
+
         # Use tqdm to display a progress bar for the number of epochs
         epochs = tqdm(range(self.epoch, self.cfg.getint('training', 'n_epoch')), leave=False, position=0)
 
@@ -380,9 +382,11 @@ class GAN_seq():
                     n += 1
 
             # Write the average epoch loss to the output
-            d_losses = [sum(loss_epoch[i]) / len(loss_epoch[i]) for i in range(1)]
-            g_losses = [sum(loss_epoch[i + 1]) / len(loss_epoch[i + 1]) for i in range(6)]
-            msg = f"epoch {self.epoch} steps {self.step} : D: {d_losses} G: {g_losses}"
+            l = [sum(loss) / len(loss) for loss in loss_epoch]
+            #g_losses = [sum(loss_epoch[i + 1]) / len(loss_epoch[i + 1]) for i in range(6)]
+            #msg = f"epoch {self.epoch} steps {self.step} : D: {d_losses} G: {g_losses}"
+            msg = "{}\t{}\t{}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}"
+            msg = msg.format(self.epoch, self.step, l[0], l[1], l[2], l[3], l[4], l[5], l[6])
             epochs.write(msg)
 
             # Increment the epoch count
