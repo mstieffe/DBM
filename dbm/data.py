@@ -70,7 +70,7 @@ class Data():
         self.max = self.get_max_dict()
 
         # Print the time needed to create the data object
-        print("Successfully created universe! This took ", timer()-start, "secs")
+        print("Successfully processed data! This took ", timer()-start, "secs")
 
     def get_samples(self, path, save=False):
         """

@@ -7,7 +7,8 @@ from torch.autograd import grad as torch_grad
 from timeit import default_timer as timer
 from dbm.util import rot_mtx_batch, make_dir, avg_blob, make_grid_np, transpose_and_zip, transpose, insert_dim, repeat, to_voxel
 from dbm.output import OutputHandler
-from tqdm.autonotebook import tqdm
+#from tqdm.autonotebook import tqdm
+from tqdm import tqdm
 import dbm.model as model
 from dbm.data import Data
 from dbm.histogram import Histogram
@@ -16,6 +17,7 @@ from dbm.stats import Stats
 from dbm.dataset import DS
 from dbm.recurrent_generator import Recurrent_Generator
 
+getattr(tqdm, '_instances', {}).clear()
 torch.set_default_dtype(torch.float32)
 
 class GAN_seq():
