@@ -118,6 +118,30 @@ class Universe():
             self.beads += beads
             self.atoms += atoms
 
+            # Check if there is information for the CG graph travsersal provided in the mapping file
+            # First, check if there is a source for the CG graph traversal given
+            for line in read_between("[source]", "[", map_file):
+                b_ndx = list(filter(None, re.split("\s+", line)))[0]
+                if int(b_ndx) > len(self.mols[-1].beads):
+                    msg = 'Index for the source of the CG graph traversal provided in the mapping file is '\
+                          'not included in the molecule'
+                    raise Exception(msg)
+                else:
+                    self.mols[-1].cg_source = self.mols[-1].beads[int(b_ndx) - 1]
+            # Second, check if there is an order of reconstruction provided
+            for line in read_between("[order]", "[", map_file):
+                ordering = list(filter(None, re.split("\s+", line)))
+                if len(set(ordering)) != len(self.mols[-1].beads):
+                    msg = 'Order of reconstruction provided in mapping file does not match number of beads'
+                    raise Exception(msg)
+                else:
+                    try:
+                        self.mols[-1].cg_order = [self.mols[-1].beads[int(b_ndx) - 1] for b_ndx in ordering]
+                    except:
+                        msg = 'Indices for the order of reconstruction provided in the mapping file do match ' \
+                              'with the beads included in the molecule'
+                        raise Exception(msg)
+
             # If Local Environments should be aligned, read the alignment information
             if self.align:
                 for line in read_between("[align]", "[", map_file):

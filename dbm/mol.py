@@ -137,6 +137,10 @@ class Mol():
         A list of bonded atom pairs in the molecule. Default is an empty list.
     cg_edges : list
         A list of coarse-grained edges in the molecule. Default is an empty list.
+    cg_source : int, optional
+        Index indicating the source for the CG graph traversal.
+    cg_order : list, optional
+        A list of CG bead indices representing the CG graph traversal,
     fp : dict
         A dictionary of fixpoints for the beads for local alignment. Default is an empty dictionary.
 
@@ -182,6 +186,8 @@ class Mol():
         self.pairs = []
 
         self.cg_edges = []
+        self.cg_source = None
+        self.cg_order = None
 
         self.fp = {}
 
@@ -332,15 +338,30 @@ class Mol():
     def cg_seq(self, order="dfs", train=True):
         # Generate a sequence of CG beads, i.e. a traversal through the CG graph
 
+        # Set source for Cg graph traversal
+        if self.cg_source:
+            source = self.cg_source
+
+        # Use order provided in the mapping file, if not, use one of the graph traversals specified in the config file
+        if self.cg_order:
+            beads = self.cg_order
         # Breadth-first search order
-        if order == "bfs":
+        elif order == "bfs":
             # Generate the bead sequence by performing a BFS traversal of the CG graph
-            edges = list(nx.bfs_edges(self.G_cg, np.random.choice(self.beads)))
+            # Set source
+            if self.cg_source:
+                edges = list(nx.bfs_edges(self.G_cg, source=self.cg_source))
+            else:
+                edges = list(nx.bfs_edges(self.G_cg, source=np.random.choice(self.beads)))
             beads = [edges[0][0]] + [e[1] for e in edges]
             # Random search order
         elif order == "random":
             # Generate the bead sequence by randomly choosing neighbors until all beads are included
-            beads = [np.random.choice(self.beads)]
+            # Set source
+            if self.cg_source:
+                beads = [self.cg_source]
+            else:
+                beads = [np.random.choice(self.beads)]
             pool = []
             for n in range(1, len(self.beads)):
                 pool += list(nx.neighbors(self.G_cg, beads[-1]))
@@ -352,7 +373,7 @@ class Mol():
                 beads.append(next)
         # If order is not bfs or random, use Depth-first order as default
         else:
-            beads = list(nx.dfs_preorder_nodes(self.G_cg))
+            beads = list(nx.dfs_preorder_nodes(self.G_cg, source=self.cg_source))
 
         # Augment data for undersampled beads
         seq = []

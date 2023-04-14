@@ -103,9 +103,17 @@ with open(out, 'w') as out:
     for a in atoms:
         out.write("{}\t{}\t{}\t{}\n".format(a.atom_ndx, a.atom_type, a.bead_ndx, a.bead_type))
     out.write("[\\map]\n\n")
-    
+
+    out.write("[source]\n")
+    out.write("[\\source]\n\n")
+
     order = bead_order(cg_itp)
-    out.write("#bead order: "+str(order)+"\n")
+    s = '{}'+'\t{}'*(len(order)-1)+'\n'
+    out.write("#bead order suggested by depth first search")
+    out.write("[source]\n")
+    out.write(s.format(*order))
+    out.write("[\\source]\n\n")
+
     out.write("[align]\n")
     for m in range(1,n):
         if m == 1:

@@ -24,7 +24,7 @@ torch.set_default_dtype(torch.float32)
 class GAN_seq():
 
     """
-    A class representing a Generative Adversarial Network (GANs) for generating molecular structures sequentially.
+    A class representing a Generative Adversarial Network (GAN) for generating molecular structures sequentially.
 
     Args:
     - device: The device to use for computation (e.g. "cpu", "cuda").
