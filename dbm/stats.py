@@ -130,7 +130,7 @@ class Stats():
     def bond_dstr(self, bond_name, samples, n_bins=80, ref=False):
         # Computes the dstr of bond lengths for a given bond type over all samples stored in data
 
-        dis = []
+        dis, compute_dstr = [], False
         for sample in samples:
             pos1, pos2 = [], []
             for mol in sample.mols:
@@ -146,16 +146,20 @@ class Stats():
                              bond.type.name == bond_name]
             if pos1:
                 dis += list(sample.box.diff_vec_batch(np.array(pos1) - np.array(pos2)))
+                compute_dstr = True
         dis = np.sqrt(np.sum(np.square(dis), axis=-1))
 
-        dstr = self.make_histo(dis, n_bins=n_bins, low=np.min(dis)*0.8, high=np.max(dis)*1.2)
+        if compute_dstr:
+            dstr = self.make_histo(dis, n_bins=n_bins, low=np.min(dis)*0.8, high=np.max(dis)*1.2)
+        else:
+            dstr = {}
 
         return dstr
 
     def angle_dstr(self, angle_name, samples, n_bins=80, ref=False):
         # Computes the dstr of angles for a given angle type over all samples stored in data
 
-        vec1, vec2 = [], []
+        vec1, vec2, compute_dstr = [], [], False
         for sample in samples:
             pos1, pos2, pos3 = [], [], []
             for mol in sample.mols:
@@ -177,6 +181,8 @@ class Stats():
             if pos1 != []:
                 vec1 += list(sample.box.diff_vec_batch(np.array(pos1) - np.array(pos2)))
                 vec2 += list(sample.box.diff_vec_batch(np.array(pos3) - np.array(pos2)))
+                compute_dstr = True
+
 
         norm1 = np.square(vec1)
         norm1 = np.sum(norm1, axis=-1)
@@ -191,15 +197,17 @@ class Stats():
         angles = np.arccos(angles)
         angles = angles*180./math.pi
 
-        dstr = self.make_histo(angles, n_bins=n_bins, low=np.min(angles)-20, high=np.max(angles)+20)
+        if compute_dstr:
+            dstr = self.make_histo(angles, n_bins=n_bins, low=np.min(angles)-20, high=np.max(angles)+20)
+        else:
+            dstr = {}
 
         return dstr
 
     def dih_dstr(self, dih_name, samples, n_bins=80, low=0.0, high=360., ref=False):
         # Computes the dstr of angles for a given dih type over all samples stored in data
 
-        plane1, plane2 = [], []
-        vec1, vec2, vec3 = [], [], []
+        plane1, plane2, compute_dstr = [], [], False
         for sample in samples:
             pos1, pos2, pos3, pos4 = [], [], [], []
             for mol in sample.mols:
@@ -224,6 +232,7 @@ class Stats():
                 vec3 = sample.box.diff_vec_batch(np.array(pos4) - np.array(pos3))
                 plane1 += list(np.cross(vec1, vec2))
                 plane2 += list(np.cross(vec2, vec3))
+                compute_dstr = True
 
         norm1 = np.square(plane1)
         norm1 = np.sum(norm1, axis=-1)
@@ -238,7 +247,10 @@ class Stats():
         angles = np.arccos(angles)
         angles = angles*180./math.pi
 
-        dstr = self.make_histo(angles, n_bins=n_bins, low=np.min(angles)-20, high=np.max(angles)+20)
+        if compute_dstr:
+            dstr = self.make_histo(angles, n_bins=n_bins, low=np.min(angles)-20, high=np.max(angles)+20)
+        else:
+            dstr = {}
 
         return dstr
 

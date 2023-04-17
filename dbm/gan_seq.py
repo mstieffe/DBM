@@ -385,7 +385,7 @@ class GAN_seq():
             l = [sum(loss) / len(loss) for loss in loss_epoch]
             #g_losses = [sum(loss_epoch[i + 1]) / len(loss_epoch[i + 1]) for i in range(6)]
             #msg = f"epoch {self.epoch} steps {self.step} : D: {d_losses} G: {g_losses}"
-            msg = "{}\t{}\t{}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}"
+            msg = "{}\t{}\t{%.2E}\t{%.2E}\t{%.2E}\t{%.2E}\t{%.2E}\t{%.2E}\t{%.2E}"
             msg = msg.format(self.epoch, self.step, l[0], l[1], l[2], l[3], l[4], l[5], l[6])
             epochs.write(msg)
 
