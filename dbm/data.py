@@ -60,17 +60,24 @@ class Data():
         self.dict_train, self.dict_val = {}, {}
         for path in self.dirs_train:
             self.dict_train[path.stem] = self.get_samples(path, save=save)
-        print("preparing validation data...")
         self.samples_train = list(itertools.chain.from_iterable(self.dict_train.values()))
+        # Print information about the processed samples
+        self.print_sample_info(train=True)
+
+        print("preparing validation data...")
         for path in self.dirs_val:
             self.dict_val[path.stem] = self.get_samples(path, save=save)
         self.samples_val = list(itertools.chain.from_iterable(self.dict_val.values()))
+        # Print information about the processed samples
+        self.print_sample_info(train=False)
 
         # Find the maximum values for each feature in the samples for padding.
         self.max = self.get_max_dict()
 
         # Print the time needed to create the data object
         print("Successfully processed data! This took ", timer()-start, "secs")
+
+
 
     def get_samples(self, path, save=False):
         """
@@ -114,9 +121,44 @@ class Data():
                     pickle.dump(samples, output, pickle.HIGHEST_PROTOCOL)
         return samples
 
+    def print_sample_info(self, train=True):
+        if train:
+            samples = self.samples_train
+        else:
+            samples = self.samples_val
+        for sample in samples:
+            unique_mols, mol_names = [], []
+            for mol in sample.mols:
+                if mol.name not in mol_names:
+                    unique_mols.append(mol)
+                    mol_names.append(mol.name)
+            msg = "Found {} molecules in sample {}".format(len(mol_names), sample.name)
+            print(msg)
+            for mol in unique_mols:
+                msg = "Molecule {} contains {} atoms and {} beads.".format(mol.name, len(mol.atoms), len(mol.beads))
+                print(msg)
+                msg = "The AA topology has {} bonds, {} angles, {} dihedrals".format(len(mol.bonds),
+                                                                                     len(mol.angles),
+                                                                                     len(mol.dihs)+len(mol.dihs_rb))
+                print(msg)
+                msg = "The CG topology has {} bonds".format(len(mol.cg_edges))
+                print(msg)
+                bead_types = set([b.type.name for b in mol.beads])
+                atom_types = set([a.type.name for a in mol.atoms])
+                msg = "The molecule contains {} atom types: {}".format(len(atom_types), atom_types)
+                print(msg)
+                msg = "The molecule contains {} beads types: {}".format(len(bead_types), bead_types)
+                print(msg)
+                order = [o[0] for o in mol.cg_seq(order=sample.order, train=False)]
+                order = [b.index for b in order]
+                msg = "The CG order of reconstruction is (bead indices): {}".format(order)
+                print(msg)
+
+
+
     def get_max_dict(self):
         """
-        Purpose: Get the maximum values of various features across all training and validation samples.
+        Get the maximum values of various features across all training and validation samples.
         Parameters: None.
         Returns: A dictionary containing the maximum values of various features across all training and validation samples.
         """
