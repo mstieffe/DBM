@@ -177,13 +177,14 @@ class GAN_seq():
         self.opt_generator = Adam(self.generator.parameters(), lr=0.00005, betas=(0, 0.9))
         self.opt_critic = Adam(self.critic.parameters(), lr=0.0001, betas=(0, 0.9))
 
-        # Set up Dropout layer (without rescaling) that randomly drops atoms form the feature representation
+        # Set up Dropout layer (without rescaling) that randomly drops atoms from the feature representation
         try:
             rate = self.cfg.getfloat('training', 'dropout')
             self.dropout = NoScaleDropout(rate)
-
+            print("Applying dropout to feature representation with a rate of {}".format(rate))
         except:
             self.dropout = torch.nn.Identity()
+            print("No dropout is used")
 
         # Set a flag to indicate that the model has not been restored from a checkpoint yet
         self.restored_model = False
