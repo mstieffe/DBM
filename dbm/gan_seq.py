@@ -334,7 +334,7 @@ class GAN_seq():
         n_critic = self.cfg.getint('training', 'n_critic')
         n_save = int(self.cfg.getint('training', 'n_save'))
 
-        print("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}".format("Epoch", "Step", "Crit", "Gen", "E_tot", "E_bond", "E_ang", "E_dih", "E_LJ"))
+        print("{}\t{}\t{}\t\t{}\t\t{}\t\t{}\t\t{}\t\t{}\t\t{}".format("Epoch", "Steps", "Crit", "Gen", "E_tot", "E_bond", "E_ang", "E_dih", "E_LJ"))
 
         # Use tqdm to display a progress bar for the number of epochs
         epochs = tqdm(range(self.epoch, self.cfg.getint('training', 'n_epoch')), leave=False, position=0)
