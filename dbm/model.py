@@ -2,6 +2,24 @@ import torch
 import torch.nn as nn
 from dbm.util import compute_same_padding
 
+class NoScaleDropout(nn.Module):
+    """
+        Dropout without rescaling and variable dropout rates.
+    """
+
+    def __init__(self, rate_max) -> None:
+        super().__init__()
+        self.rate_max = rate_max
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if not self.training or self.rate_max == 0:
+            return x
+        else:
+            rate = torch.empty(1, device=x.device).uniform_(0, self.rate_max)
+            N, n_atoms, *rest = x.shape
+            mask = torch.empty((N, n_atoms), device=x.device).bernoulli_(1 - rate)
+            return x * mask[:, :, None, None, None]
+
 def _facify(n, fac):
     """
     Function to divide n by fac and cast the result to an integer.

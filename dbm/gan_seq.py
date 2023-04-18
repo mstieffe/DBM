@@ -9,7 +9,7 @@ from dbm.util import rot_mtx_batch, make_dir, avg_blob, make_grid_np, transpose_
 from dbm.output import OutputHandler
 #from tqdm.autonotebook import tqdm
 from tqdm.auto import tqdm
-import dbm.model as model
+from dbm.model import AtomCrit_tiny, AtomGen_tiny, NoScaleDropout
 from dbm.data import Data
 from dbm.histogram import Histogram
 from dbm.energy import Energy
@@ -156,11 +156,11 @@ class GAN_seq():
         # Model set up
         # If the resolution is 8, use the AtomCrit_tiny and AtomGen_tiny models defined in the model module
         if cfg.getint('grid', 'resolution') == 8:
-            self.critic = model.AtomCrit_tiny(in_channels=self.data.ff.n_channels + 1,
+            self.critic = AtomCrit_tiny(in_channels=self.data.ff.n_channels + 1,
                                               start_channels=self.cfg.getint('model', 'n_chns'),
                                               fac=1, sn=self.cfg.getint('model', 'sn_crit'),
                                               device=device)
-            self.generator = model.AtomGen_tiny(z_dim=self.z_and_label_dim,
+            self.generator = AtomGen_tiny(z_dim=self.z_and_label_dim,
                                                 in_channels=self.data.ff.n_channels,
                                                 start_channels=self.cfg.getint('model', 'n_chns'),
                                                 fac=1,
@@ -176,6 +176,14 @@ class GAN_seq():
         # Define the optimizer for the generator and the critic models
         self.opt_generator = Adam(self.generator.parameters(), lr=0.00005, betas=(0, 0.9))
         self.opt_critic = Adam(self.critic.parameters(), lr=0.0001, betas=(0, 0.9))
+
+        # Set up Dropout layer (without rescaling) that randomly drops atoms form the feature representation
+        try:
+            rate = self.cfg.getfloat('training', 'dropout')
+            self.dropout = NoScaleDropout(rate)
+
+        except:
+            self.dropout = torch.nn.Identity()
 
         # Set a flag to indicate that the model has not been restored from a checkpoint yet
         self.restored_model = False
@@ -250,16 +258,20 @@ class GAN_seq():
 
 
 
-    def featurize(self, grid, features):
+    def featurize(self, grid, features, drop=False):
+        # apply dropout (set some feature channels for randomly chosen atoms to zero
+        if drop:
+            grid = self.dropout(grid)
+
         # This method featurizes the input grid based on the given features.
         grid = grid[:, :, None, :, :, :] * features[:, :, :, None, None, None]
         # grid (BS, N_atoms, 1, N_x, N_y, N_z) * features (BS, N_atoms, N_features, 1, 1, 1)
         return torch.sum(grid, 1)
 
-    def prepare_condition(self, fake_atom_grid, real_atom_grid, aa_featvec, bead_features):
+    def prepare_condition(self, fake_atom_grid, real_atom_grid, aa_featvec, bead_features, drop=False):
         # This method prepares the condition for training the generator and the critic.
-        fake_aa_features = self.featurize(fake_atom_grid, aa_featvec)
-        real_aa_features = self.featurize(real_atom_grid, aa_featvec)
+        fake_aa_features = self.featurize(fake_atom_grid, aa_featvec, drop=drop)
+        real_aa_features = self.featurize(real_atom_grid, aa_featvec, drop=drop)
         c_fake = fake_aa_features + bead_features
         c_real = real_aa_features + bead_features
         return c_fake, c_real
@@ -415,7 +427,7 @@ class GAN_seq():
         for target_atom, target_type, aa_featvec, repl, mask in elems:
 
             # Prepare input for generator.
-            c_fake, c_real = self.prepare_condition(fake_atom_grid, real_atom_grid, aa_featvec, cg_features)
+            c_fake, c_real = self.prepare_condition(fake_atom_grid, real_atom_grid, aa_featvec, cg_features, drop=True)
 
             # Create a tensor of random values with normal distribution.
             z = torch.empty(
@@ -481,7 +493,7 @@ class GAN_seq():
         # Loop over the input elements
         for target_atom, target_type, aa_featvec, repl, mask in elems:
             # Prepare input for generator
-            fake_aa_features = self.featurize(fake_atom_grid, aa_featvec)
+            fake_aa_features = self.featurize(fake_atom_grid, aa_featvec, drop=True)
             c_fake = fake_aa_features + cg_features
 
             # Sample random noise vector and generate fake atom
