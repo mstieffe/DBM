@@ -260,11 +260,12 @@ class GAN_seq():
 
 
     def featurize(self, grid, features, drop=False):
+        # This method featurizes the input grid based on the given features.
+
         # apply dropout (set some feature channels for randomly chosen atoms to zero
         if drop:
             grid = self.dropout(grid)
 
-        # This method featurizes the input grid based on the given features.
         grid = grid[:, :, None, :, :, :] * features[:, :, :, None, None, None]
         # grid (BS, N_atoms, 1, N_x, N_y, N_z) * features (BS, N_atoms, N_features, 1, 1, 1)
         return torch.sum(grid, 1)

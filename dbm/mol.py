@@ -139,6 +139,8 @@ class Mol():
         A list of coarse-grained edges in the molecule. Default is an empty list.
     cg_source : int, optional
         Index indicating the source for the CG graph traversal.
+    aa_source : int, optional
+        Index indicating the source for the AA graph traversal.
     cg_order : list, optional
         A list of CG bead indices representing the CG graph traversal,
     fp : dict
@@ -187,6 +189,7 @@ class Mol():
 
         self.cg_edges = []
         self.cg_source = None
+        self.aa_source = None
         self.cg_order = None
 
         self.fp = {}
@@ -338,10 +341,6 @@ class Mol():
     def cg_seq(self, order="dfs", train=True):
         # Generate a sequence of CG beads, i.e. a traversal through the CG graph
 
-        # Set source for Cg graph traversal
-        if self.cg_source:
-            source = self.cg_source
-
         # Use order provided in the mapping file, if not, use one of the graph traversals specified in the config file
         if self.cg_order:
             beads = self.cg_order
@@ -406,7 +405,7 @@ class Mol():
         cg_seq = self.cg_seq(order=order, train=train)
 
         # Loop through each CG bead in the sequence
-        for bead, predecessor_beads in cg_seq:
+        for bead_num, (bead, predecessor_beads) in enumerate(cg_seq):
 
             # Get the atoms in the CG bead
             bead_atoms = bead.atoms
@@ -421,18 +420,23 @@ class Mol():
             predecessor_atoms_hydrogens = [a for a in predecessor_atoms if a.type.mass < 2.0]
 
             # Find the start atom for the sequence
-            psble_start_nodes = []
-            n_heavy_neighbors = []
-            for a in heavy_atoms:
-                n_heavy_neighbors.append(len(list(nx.all_neighbors(self.G_heavy, a))))
-                for n in nx.all_neighbors(self.G_heavy, a):
-                    if n in predecessor_atoms_heavy:
-                        psble_start_nodes.append(a)
-            if psble_start_nodes:
-                # just take first one...
-                start_atom = psble_start_nodes[0]
+            # If it is the first bead of the CG graph traversal and a AA source is given, use it as start atom
+            if bead_num == 0 and self.aa_source:
+                start_atom = self.aa_source
+            # otherwise proceed selecting a start atom
             else:
-                start_atom = heavy_atoms[np.array(n_heavy_neighbors).argmin()]
+                psble_start_nodes = []
+                n_heavy_neighbors = []
+                for a in heavy_atoms:
+                    n_heavy_neighbors.append(len(list(nx.all_neighbors(self.G_heavy, a))))
+                    for n in nx.all_neighbors(self.G_heavy, a):
+                        if n in predecessor_atoms_heavy:
+                            psble_start_nodes.append(a)
+                if psble_start_nodes:
+                    # just take first one...
+                    start_atom = psble_start_nodes[0]
+                else:
+                    start_atom = heavy_atoms[np.array(n_heavy_neighbors).argmin()]
 
 
             # Generate the sequence of heavy atoms in the bead

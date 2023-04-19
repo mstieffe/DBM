@@ -120,7 +120,7 @@ class Universe():
 
             # Check if there is information for the CG graph travsersal provided in the mapping file
             # First, check if there is a source for the CG graph traversal given
-            for line in read_between("[source]", "[", map_file):
+            for line in read_between("[cg_source]", "[", map_file):
                 b_ndx = list(filter(None, re.split("\s+", line)))[0]
                 if int(b_ndx) > len(self.mols[-1].beads):
                     msg = 'Index for the source of the CG graph traversal provided in the mapping file is '\
@@ -129,7 +129,7 @@ class Universe():
                 else:
                     self.mols[-1].cg_source = self.mols[-1].beads[int(b_ndx) - 1]
             # Second, check if there is an order of reconstruction provided
-            for line in read_between("[order]", "[", map_file):
+            for line in read_between("[cg_order]", "[", map_file):
                 ordering = list(filter(None, re.split("\s+", line)))
                 if len(set(ordering)) != len(self.mols[-1].beads):
                     msg = 'Order of reconstruction provided in mapping file does not match number of beads'
@@ -141,6 +141,17 @@ class Universe():
                         msg = 'Indices for the order of reconstruction provided in the mapping file do match ' \
                               'with the beads included in the molecule'
                         raise Exception(msg)
+
+            # Check if there is information for the AA graph traversal provided in the mapping file
+            # Check for AA source
+            for line in read_between("[aa_source]", "[", map_file):
+                a_ndx = list(filter(None, re.split("\s+", line)))[0]
+                if int(a_ndx) > len(self.mols[-1].atoms):
+                    msg = 'Index for the source of the AA graph traversal provided in the mapping file is '\
+                          'not included in the molecule'
+                    raise Exception(msg)
+                else:
+                    self.mols[-1].aa_source = self.mols[-1].atoms[int(a_ndx) - 1]
 
             # If Local Environments should be aligned, read the alignment information
             if self.align:
