@@ -151,6 +151,10 @@ class GAN_seq():
             self.val_bs = self.cfg.getint('validate', 'batchsize')
         except:
             self.val_bs = 64
+        try:
+            self.n_init = self.cfg.getint('validate', 'n_init')
+        except:
+            self.n_init = 1
         self.n_gibbs = int(cfg.getint('validate', 'n_gibbs'))
 
         # Model set up
@@ -690,15 +694,17 @@ class GAN_seq():
         data_generators = []
 
         # Data generators for initial structure
-        # Heavy atoms
-        data_generators.append(iter(
-            Recurrent_Generator(self.data, hydrogens=False, gibbs=False, train=False, rand_rot=False, pad_seq=False,
-                                ref_pos=False)))
-        # Hydrogens
-        if self.cfg.getboolean('training', 'hydrogens'):
+        for m in range(self.n_init):
+            # Heavy atoms
             data_generators.append(iter(
-                Recurrent_Generator(self.data, hydrogens=True, gibbs=False, train=False, rand_rot=False, pad_seq=False,
+                Recurrent_Generator(self.data, hydrogens=False, gibbs=False, train=False, rand_rot=False, pad_seq=False,
                                     ref_pos=False)))
+            # Hydrogens
+            if self.cfg.getboolean('training', 'hydrogens'):
+                data_generators.append(iter(
+                    Recurrent_Generator(self.data, hydrogens=True, gibbs=False, train=False, rand_rot=False, pad_seq=False,
+                                        ref_pos=False)))
+
         # Data generators for gibbs sampling
         for m in range(self.n_gibbs):
             # Heavy atoms
