@@ -793,7 +793,7 @@ class GAN_seq():
                         a.pos = d['loc_env'].rot_back(c)
 
             # Save sample
-            subdir = "ep" + str(self.epoch) + "_valbs" + str(self.val_bs) + "_gibbs" + str(self.n_gibbs) + self.prior_mode + self.val_mode
+            subdir = "ep" + str(self.epoch) + "_valbs" + str(self.val_bs) + "_ninit" + str(self.n_init) + "_ngibbs" + str(self.n_gibbs) + self.prior_mode + self.val_mode
             stats.save_samples(train=False, subdir=subdir)
 
             # if validate is set to true in cfg file, compute statistics of the generated sample
