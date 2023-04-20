@@ -44,14 +44,17 @@ In order to use the DBM algorithm, the user will need to provide the following d
 ### Training
 
 Train the model using the following command:
-	```
-	python train.py config.ini
-	```
+
+```
+python train.py config.ini
+```
+	
 ### Validation
 
 Once training is done, we can use the model for the validation data (specified in the `config.ini`)
-	```
-	python val.py config.ini
-	```
+
+```
+python val.py config.ini
+```
 
 
