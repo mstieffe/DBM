@@ -31,15 +31,15 @@ conda env create -f env.yml
 
 ## Usage
 
-The best way to learn how to use Allegro is through the [Colab Tutorial](https://colab.research.google.com/drive/1-DDO77m3ZrT_ZMukLbDl-snjD6EtEYVO?usp=sharing). This will run entirely on Google's cloud virtual machine, you do not need to install or run anything locally.
+The best way to learn how to use DBM is through the [Colab Tutorial](https://colab.research.google.com/drive/1-DDO77m3ZrT_ZMukLbDl-snjD6EtEYVO?usp=sharing). This will run entirely on Google's cloud virtual machine, you do not need to install or run anything locally.
 
 ### Data
 In order to use the DBM algorithm, the user will need to provide the following data:
 - **Molecular structures:** Snapshots of CG molecular structures with a `.gro` file extension, formatted as described in the [GROMACS manual](https://manual.gromacs.org/archive/5.0.4/online/gro.html). These files should be stored in a directory named `my_dir` inside `./data/reference_snapshots/my_dir/cg`. If the user wants to train a new model, they will also need to provide reference AA structure files, which should be stored inside `./data/reference_snapshots/my_dir/aa` and named identically to their corresponding CG structure file.
 - **Topology:** For each residue with the name `res_name` included in the snapshot, the user must provide a corresponding topology file with an `.itp` file extension for both the AA topology and the CG topology. The formatting of the topology file is described in the [GROMACS manual](https://manual.gromacs.org/archive/5.0.4/online/gro.html). These files should be stored inside `./data/aa_top/res_name.itp` and `./data/cg_top/res_name.itp`, respectively.
-- **Mapping:** For each residue, a mapping file with a `.map` file extension is needed to describe the correspondence between CG and AA structures. The file should be stored inside `./data/mapping/res_name.map` (see colab tutorial for further information).
-- **Forcefield and features:** The feature mapping and energy terms are specified in a `.ff` file inside `./forcefield/` (see colab tutorial for further information).
-- **Config:** The model specifications, such as training data, the model name, resolution, and regularizer, are stored in a `config.ini` file (see colab tutorial for further information).
+- **Mapping:** For each residue, a mapping file with a `.map` file extension is needed to describe the correspondence between CG and AA structures. The file should be stored inside `./data/mapping/res_name.map` (see [Colab Tutorial](https://colab.research.google.com/drive/1-DDO77m3ZrT_ZMukLbDl-snjD6EtEYVO?usp=sharing) for further information).
+- **Forcefield and features:** The feature mapping and energy terms are specified in a `.ff` file inside `./forcefield/` (see [Colab Tutorial](https://colab.research.google.com/drive/1-DDO77m3ZrT_ZMukLbDl-snjD6EtEYVO?usp=sharing) for further information).
+- **Config:** The model specifications, such as training data, the model name, resolution, and regularizer, are stored in a `config.ini` file (see [Colab Tutorial](https://colab.research.google.com/drive/1-DDO77m3ZrT_ZMukLbDl-snjD6EtEYVO?usp=sharing) for further information).
 
 ### Training
 
